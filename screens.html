@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screens Manager | ነሃስ ማስታወቂያ</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
+        
+        /* Sidebar Navigation */
+        .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { text-align: center; padding: 20px 0; margin: 0; border-bottom: 1px solid #334155; font-size: 1.4rem; }
+        .amharic-sub { display: block; font-size: 0.9rem; font-weight: normal; color: #94a3b8; margin-top: 5px; }
+        .nav-items { list-style: none; padding: 0; margin: 0; }
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: background 0.2s; }
+        .nav-items li:hover { background-color: #3b82f6; }
+        .nav-items li.active { background-color: #3b82f6; font-weight: bold; }
+
+        /* Main Content */
+        .main-content { flex: 1; padding: 30px; display: flex; gap: 20px; overflow: hidden; }
+        
+        /* Left Column: Screen List */
+        .screen-list-panel { width: 300px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+        .panel-header { padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc; border-radius: 8px 8px 0 0; }
+        .list-items { overflow-y: auto; flex: 1; }
+        .screen-item { padding: 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: 0.2s; }
+        .screen-item:hover { background: #f0f9ff; }
+        .screen-item.selected { border-left: 5px solid #3b82f6; background: #eff6ff; }
+        .screen-item h4 { margin: 0; font-size: 1rem; color: #1e293b; }
+        .screen-item small { color: #64748b; }
+
+        /* Right Column: Playlist Management */
+        .playlist-panel { flex: 1; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+        .playlist-grid { padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; overflow-y: auto; }
+        
+        /* Media Cards */
+        .media-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff; position: relative; }
+        .media-preview { width: 100%; height: 120px; background: #eee; object-fit: cover; }
+        .media-info { padding: 10px; font-size: 0.85rem; }
+        .delete-btn { width: 100%; background: #fee2e2; color: #dc2626; border: none; padding: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .delete-btn:hover { background: #fecaca; }
+
+        .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: #94a3b8; flex-direction: column; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
+        <ul class="nav-items">
+            <li onclick="location.href='index.html'">Dashboard</li>
+            <li class="active">Screens Manager</li>
+            <li>Media Library</li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <div class="screen-list-panel">
+            <div class="panel-header">Connected Displays</div>
+            <div id="screen-list-container" class="list-items">
+                </div>
+        </div>
+
+        <div class="playlist-panel">
+            <div class="panel-header" id="playlist-title">Select a screen to manage</div>
+            <div id="playlist-container" class="playlist-grid">
+                <div class="empty-state">
+                    <p>Click a screen on the left to view its live playlist.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let selectedScreenId = null;
+
+        // 1. Fetch all paired screens
+        async function loadScreens() {
+            const { data: screens, error } = await supabaseClient
+                .from('screens')
+                .select('*')
+                .eq('is_paired', true)
+                .order('name');
+
+            const container = document.getElementById('screen-list-container');
+            container.innerHTML = '';
+
+            if (screens.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align:center; color:#94a3b8;">No screens paired yet.</div>';
+                return;
+            }
+
+            screens.forEach(screen => {
+                const div = document.createElement('div');
+                div.className = `screen-item ${selectedScreenId === screen.id ? 'selected' : ''}`;
+                div.onclick = () => selectScreen(screen);
+                div.innerHTML = `
+                    <h4>${screen.name}</h4>
+                    <small>ID: ${screen.id.substring(0,8)}...</small>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // 2. Load the playlist for the clicked screen
+        async function selectScreen(screen) {
+            selectedScreenId = screen.id;
+            document.getElementById('playlist-title').textContent = `Live Playlist: ${screen.name}`;
+            
+            // Re-render list to show selection
+            loadScreens();
+            fetchPlaylist();
+        }
+
+        async function fetchPlaylist() {
+            const container = document.getElementById('playlist-container');
+            container.innerHTML = '<p style="padding:20px;">Loading loop...</p>';
+
+            const { data, error } = await supabaseClient
+                .from('playlist_items')
+                .select(`id, duration_seconds, display_order, media ( file_url, file_name )`)
+                .eq('screen_id', selectedScreenId)
+                .order('display_order', { ascending: true });
+
+            container.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>This screen has no content assigned.</p></div>';
+                return;
+            }
+
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'media-card';
+                card.innerHTML = `
+                    <img src="${item.media.file_url}" class="media-preview">
+                    <div class="media-info">
+                        <strong>${item.media.file_name}</strong><br>
+                        <span>Duration: ${item.duration_seconds}s</span>
+                    </div>
+                    <button class="delete-btn" onclick="removeFromPlaylist('${item.id}')">Remove from Screen</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 3. Delete functionality
+        async function removeFromPlaylist(playlistItemId) {
+            if (!confirm("Are you sure you want to remove this image from the live rotation?")) return;
+
+            const { error } = await supabaseClient
+                .from('playlist_items')
+                .delete()
+                .eq('id', playlistItemId);
+
+            if (error) {
+                alert("Error removing item.");
+            } else {
+                fetchPlaylist(); // Refresh the grid
+            }
+        }
+
+        // Initialize
+        loadScreens();
+    </script>
+</body>
+</html>
