@@ -7,77 +7,41 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
-        
-        /* Sidebar Navigation */
         .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
-        .sidebar h2 { text-align: center; padding: 20px 0; margin: 0; border-bottom: 1px solid #334155; font-size: 1.4rem; }
-        .amharic-sub { display: block; font-size: 0.9rem; font-weight: normal; color: #94a3b8; margin-top: 5px; }
+        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; }
         .nav-items { list-style: none; padding: 0; margin: 0; }
-        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
-        .nav-items li:hover { background-color: #3b82f6; }
-        .nav-items li.active { background-color: #3b82f6; font-weight: bold; }
-
-        /* Main Layout */
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; }
+        .nav-items li.active { background-color: #3b82f6; }
         .main-content { flex: 1; padding: 30px; display: flex; gap: 20px; overflow: hidden; }
-        
-        /* Left: Screen List */
-        .screen-list-panel { width: 320px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-        .panel-header { padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;}
-        .list-items { overflow-y: auto; flex: 1; }
-        .screen-item { padding: 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: 0.2s; position: relative;}
-        .screen-item:hover { background: #f0f9ff; }
-        .screen-item.selected { border-left: 5px solid #3b82f6; background: #eff6ff; }
-        .screen-item h4 { margin: 0; font-size: 1rem; color: #1e293b; display: flex; align-items: center; gap: 8px;}
-        
-        /* Status Dot */
-        .status-dot { width: 10px; height: 100%; position: absolute; left: 0; top: 0; background: #94a3b8; } /* Default gray */
-        .status-online { background: #10b981; } /* Green */
-
-        /* Right: Playlist Management */
-        .playlist-panel { flex: 1; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-        .playlist-grid { padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; overflow-y: auto; }
-        
-        /* Content Cards */
-        .media-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff; display: flex; flex-direction: column; transition: transform 0.2s; }
-        .media-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .media-preview { width: 100%; height: 130px; background: #000; object-fit: contain; }
-        .media-info { padding: 12px; font-size: 0.85rem; flex: 1; }
-        .media-info b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1e293b; }
-        .type-tag { font-size: 0.7rem; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: #e2e8f0; font-weight: bold; }
-        
-        .delete-btn { width: 100%; background: #fee2e2; color: #dc2626; border: none; padding: 10px; cursor: pointer; font-weight: bold; border-top: 1px solid #fecaca; }
-        .delete-btn:hover { background: #ef4444; color: white; }
-
-        .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; text-align: center; }
+        .screen-list-panel { width: 320px; background: white; border-radius: 8px; display: flex; flex-direction: column; }
+        .panel-header { padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc; }
+        .screen-item { padding: 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; position: relative; padding-left: 25px; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; position: absolute; left: 8px; top: 18px; background: #94a3b8; border: 2px solid white; }
+        .dot-online { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .dot-offline { background: #ef4444; }
+        .playlist-panel { flex: 1; background: white; border-radius: 8px; display: flex; flex-direction: column; }
+        .playlist-grid { padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; overflow-y: auto; }
+        .media-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; text-align: center; }
+        .media-preview { width: 100%; height: 100px; object-fit: cover; background: #000; }
+        .delete-btn { width: 100%; background: #fee2e2; color: #dc2626; border: none; padding: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
-
     <div class="sidebar">
-        <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
+        <h2>NEHAS SIGNAGE</h2>
         <ul class="nav-items">
             <li onclick="location.href='index.html'">Dashboard</li>
-            <li class="active" onclick="location.href='screens.html'">Screens Manager</li>
+            <li class="active">Screens Manager</li>
         </ul>
     </div>
-
     <div class="main-content">
         <div class="screen-list-panel">
-            <div class="panel-header">
-                Connected Displays
-                <button onclick="loadScreens()" style="font-size: 0.7rem; cursor: pointer; padding: 2px 5px;">Refresh</button>
-            </div>
-            <div id="screen-list-container" class="list-items">
-                </div>
+            <div class="panel-header">Connected Displays</div>
+            <div id="screen-list-container"></div>
         </div>
-
         <div class="playlist-panel">
-            <div class="panel-header" id="playlist-title">Select a display to manage</div>
-            <div id="playlist-container" class="playlist-grid">
-                <div class="empty-state">
-                    <p>Click a screen on the left to view and edit its current media loop.</p>
-                </div>
-            </div>
+            <div class="panel-header" id="playlist-title">Select a display</div>
+            <div id="playlist-container" class="playlist-grid"></div>
         </div>
     </div>
 
@@ -85,92 +49,40 @@
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = window.supabase.createClient(S_URL, S_KEY);
-
-        let activeScreenId = null;
+        let activeId = null;
 
         async function loadScreens() {
-            const { data: screens, error } = await sbClient
-                .from('screens')
-                .select('*')
-                .eq('is_paired', true)
-                .order('name');
-
+            const { data: screens } = await sbClient.from('screens').select('*').eq('is_paired', true).order('name');
             const container = document.getElementById('screen-list-container');
             container.innerHTML = '';
-
-            if (!screens || screens.length === 0) {
-                container.innerHTML = '<div style="padding:20px; color:#94a3b8;">No screens paired yet.</div>';
-                return;
-            }
-
-            screens.forEach(s => {
-                const item = document.createElement('div');
-                item.className = `screen-item ${activeScreenId === s.id ? 'selected' : ''}`;
-                item.onclick = () => {
-                    activeScreenId = s.id;
-                    document.getElementById('playlist-title').textContent = `Live Loop: ${s.name}`;
-                    loadScreens(); // Refresh selection visual
-                    fetchPlaylist();
-                };
-                
-                item.innerHTML = `
-                    <div class="status-dot"></div>
-                    <h4>${s.name}</h4>
-                    <small style="color:#64748b;">ID: ${s.id.substring(0,8)}</small>
-                `;
-                container.appendChild(item);
+            
+            screens?.forEach(s => {
+                // Check if last seen is within 3 minutes
+                const isOnline = s.last_seen && (new Date() - new Date(s.last_seen)) < 180000;
+                const div = document.createElement('div');
+                div.className = 'screen-item';
+                div.innerHTML = `<div class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></div><b>${s.name}</b>`;
+                div.onclick = () => { activeId = s.id; fetchPlaylist(); };
+                container.appendChild(div);
             });
         }
 
         async function fetchPlaylist() {
+            const { data } = await sbClient.from('playlist_items').select(`id, media ( file_url, file_name, media_type )`).eq('screen_id', activeId);
             const container = document.getElementById('playlist-container');
-            container.innerHTML = '<p>Loading playlist...</p>';
-
-            const { data, error } = await sbClient
-                .from('playlist_items')
-                .select(`id, duration_seconds, media ( file_url, file_name, media_type )`)
-                .eq('screen_id', activeScreenId)
-                .order('display_order', { ascending: true });
-
-            container.innerHTML = '';
-
-            if (!data || data.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>This screen is currently showing the default brand graphic.</p></div>';
-                return;
-            }
-
-            data.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'media-card';
-                
-                const preview = item.media.media_type === 'video' 
-                    ? `<video src="${item.media.file_url}" class="media-preview" muted></video>`
-                    : `<img src="${item.media.file_url}" class="media-preview">`;
-
-                card.innerHTML = `
-                    ${preview}
-                    <div class="media-info">
-                        <b>${item.media.file_name}</b>
-                        <span class="type-tag">${item.media.media_type}</span> • ${item.duration_seconds}s
-                    </div>
-                    <button class="delete-btn" onclick="removeItem('${item.id}')">Remove From Screen</button>
-                `;
-                container.appendChild(card);
-            });
+            container.innerHTML = data?.map(item => `
+                <div class="media-card">
+                    ${item.media.media_type === 'video' ? '<div class="media-preview" style="display:flex;align-items:center;justify-content:center;color:white;">VIDEO</div>' : `<img src="${item.media.file_url}" class="media-preview">`}
+                    <div style="padding:5px;font-size:12px;">${item.media.file_name}</div>
+                    <button class="delete-btn" onclick="remove('${item.id}')">Remove</button>
+                </div>
+            `).join('') || 'Empty';
         }
 
-        async function removeItem(itemId) {
-            if (!confirm("Remove this from the live loop?")) return;
-            
-            const { error } = await sbClient
-                .from('playlist_items')
-                .delete()
-                .eq('id', itemId);
-
-            if (!error) fetchPlaylist();
-        }
+        async function remove(id) { if(confirm('Remove?')) { await sbClient.from('playlist_items').delete().eq('id', id); fetchPlaylist(); } }
 
         loadScreens();
+        setInterval(loadScreens, 30000); // Refresh screen list/dots every 30 seconds
     </script>
 </body>
 </html>
