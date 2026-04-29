@@ -6,156 +6,98 @@
     <title>Nehas Signage Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { 
-            margin: 0; padding: 0; width: 100vw; height: 100vh; 
-            background-color: #000; overflow: hidden; 
-            display: flex; justify-content: center; align-items: center; 
-            font-family: 'Segoe UI', sans-serif; color: #fff; 
-        }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background-color: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; color: #fff; }
         #media-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-        #media-container img, #media-container video { width: 100%; height: 100%; object-fit: contain; outline: none; border: none; }
-        
-        /* Pairing Screen Style */
+        #media-container img, #media-container video { width: 100%; height: 100%; object-fit: contain; }
         .pairing-screen { text-align: center; background: #1e293b; padding: 60px; border-radius: 16px; border: 2px solid #334155; }
         .pairing-code { font-size: 6rem; font-weight: bold; color: #3b82f6; letter-spacing: 10px; margin: 20px 0; background: #0f172a; padding: 20px 40px; border-radius: 12px; }
-        
-        /* Default Brand Graphic */
         .default-graphic { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        .default-graphic h1 { font-size: 5rem; margin: 0; text-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
-        .default-graphic h2 { font-size: 3rem; margin-top: 15px; font-weight: 300; color: #93c5fd; }
-        .default-graphic p { margin-top: 50px; font-size: 1.5rem; opacity: 0.7; border-top: 1px solid #3b82f6; padding-top: 30px; }
+        .default-graphic h1 { font-size: 5rem; margin: 0; }
+        .default-graphic h2 { font-size: 3rem; margin-top: 15px; color: #93c5fd; }
     </style>
 </head>
 <body>
-
-    <div id="media-container">
-        <h1>Initializing Nehas Signage...</h1>
-    </div>
+    <div id="media-container"><h1>Initializing...</h1></div>
 
     <script>
-        const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const sbClient = window.supabase.createClient(S_URL, S_KEY);
 
         let SCREEN_ID = localStorage.getItem('nehas_screen_id');
         let playlist = [];
         let currentIndex = 0;
         let loopTimer;
 
-        // Force Fullscreen on first click (helps during setup)
-        document.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(e => console.log(e));
+        async function sendHeartbeat() {
+            if (SCREEN_ID) {
+                await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
             }
-        });
+        }
 
-        async function bootSequence() {
+        async function boot() {
             if (!SCREEN_ID) {
-                // Generate fresh pairing code
-                const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-                const { data } = await supabaseClient.from('screens')
-                    .insert([{ name: 'Unpaired Display', pairing_code: newCode, is_paired: false }]).select();
-                
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                const { data } = await sbClient.from('screens').insert([{ name: 'New Display', pairing_code: code, is_paired: false }]).select();
                 if (data) {
                     SCREEN_ID = data[0].id;
-                    localStorage.setItem('nehas_screen_id', SCREEN_ID); 
-                    renderPairingScreen(newCode);
-                    listenForPairing();
+                    localStorage.setItem('nehas_screen_id', SCREEN_ID);
+                    renderPairing(code);
+                    listenPairing();
                 }
             } else {
-                // Check current status
-                const { data } = await supabaseClient.from('screens').select('is_paired, pairing_code').eq('id', SCREEN_ID).single();
-                
-                if (data && data.is_paired) {
-                    startSignage();
-                } else if (data) {
-                    renderPairingScreen(data.pairing_code);
-                    listenForPairing();
-                } else {
-                    // Reset if screen was deleted from DB
-                    localStorage.removeItem('nehas_screen_id');
-                    location.reload();
-                }
+                const { data } = await sbClient.from('screens').select('is_paired, pairing_code').eq('id', SCREEN_ID).single();
+                if (data?.is_paired) start();
+                else if (data) { renderPairing(data.pairing_code); listenPairing(); }
             }
+            
+            // Start heartbeat every 60 seconds
+            sendHeartbeat();
+            setInterval(sendHeartbeat, 60000);
         }
 
-        function renderPairingScreen(code) {
-            document.getElementById('media-container').innerHTML = `
-                <div class="pairing-screen">
-                    <h2>NEHAS SIGNAGE</h2>
-                    <p style="color: #94a3b8;">Enter this code in your Admin Dashboard:</p>
-                    <div class="pairing-code">${code}</div>
-                </div>`;
+        function renderPairing(c) {
+            document.getElementById('media-container').innerHTML = `<div class="pairing-screen"><h2>NEHAS SIGNAGE</h2><p>Pairing Code:</p><div class="pairing-code">${c}</div></div>`;
         }
 
-        function renderDefaultGraphic() {
-            document.getElementById('media-container').innerHTML = `
-                <div class="default-graphic">
-                    <h1>Nehas Digital Signage</h1>
-                    <h2>ነሃስ ማስታወቂያ</h2>
-                    <p>No content scheduled.<br>Upload via Dashboard.</p>
-                </div>`;
+        function listenPairing() {
+            sbClient.channel('auth').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, (p) => { if (p.new.is_paired) start(); }).subscribe();
         }
 
-        function listenForPairing() {
-            supabaseClient.channel('auth_channel').on('postgres_changes', 
-                { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` },
-                (payload) => { if (payload.new.is_paired) startSignage(); }
-            ).subscribe();
-        }
-
-        function startSignage() {
+        function start() {
             fetchPlaylist();
-            subscribeToPlaylistChanges();
+            sbClient.channel('pl').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` }, () => fetchPlaylist()).subscribe();
         }
 
         async function fetchPlaylist() {
-            const { data } = await supabaseClient.from('playlist_items')
-                .select(`duration_seconds, media ( file_url, media_type )`)
-                .eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
-            
+            const { data } = await sbClient.from('playlist_items').select(`duration_seconds, media ( file_url, media_type )`).eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
             playlist = data || [];
             currentIndex = 0;
-            playNext();
+            play();
         }
 
-        function playNext() {
-            clearTimeout(loopTimer); 
+        function play() {
+            clearTimeout(loopTimer);
             const container = document.getElementById('media-container');
-
             if (playlist.length === 0) {
-                renderDefaultGraphic();
+                container.innerHTML = `<div class="default-graphic"><h1>Nehas Signage</h1><h2>ነሃስ ማስታወቂያ</h2></div>`;
                 return;
             }
-
-            const currentItem = playlist[currentIndex];
-            const mediaData = currentItem.media;
-
-            // Advance index for next round
+            const item = playlist[currentIndex];
             currentIndex = (currentIndex + 1) % playlist.length;
 
-            if (mediaData.media_type === 'image') {
-                container.innerHTML = `<img src="${mediaData.file_url}" />`;
-                loopTimer = setTimeout(playNext, currentItem.duration_seconds * 1000);
-                
-            } else if (mediaData.media_type === 'video') {
-                container.innerHTML = `
-                    <video id="signage-video" src="${mediaData.file_url}" autoplay muted playsinline></video>
-                `;
-                const vid = document.getElementById('signage-video');
-                vid.onended = () => playNext();
-                vid.onerror = () => { console.error("Video Error"); playNext(); };
+            if (item.media.media_type === 'image') {
+                container.innerHTML = `<img src="${item.media.file_url}">`;
+                loopTimer = setTimeout(play, item.duration_seconds * 1000);
+            } else {
+                container.innerHTML = `<video src="${item.media.file_url}" autoplay muted></video>`;
+                const v = container.querySelector('video');
+                v.onended = play;
+                v.onerror = play;
             }
         }
 
-        function subscribeToPlaylistChanges() {
-            supabaseClient.channel('playlist_channel').on('postgres_changes',
-                { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` },
-                () => fetchPlaylist()
-            ).subscribe();
-        }
-
-        bootSequence();
+        boot();
     </script>
 </body>
 </html>
