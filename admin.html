@@ -64,16 +64,15 @@
     </div>
 
     <script>
-        // --- API CONFIGURATION ---
         const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         
-        // This is only declared ONCE now.
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // BUG FIX: Renamed variable to avoid clashing with the library
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         const BUCKET_NAME = 'signage-media';
 
         async function loadScreens() {
-            const { data: screens, error } = await supabase.from('screens').select('id, name').order('name');
+            const { data: screens, error } = await supabaseClient.from('screens').select('id, name').order('name');
             if (error) { 
                 document.getElementById('status-msg').textContent = "Failed to load screens. Check API keys.";
                 document.getElementById('status-msg').style.color = '#dc2626';
@@ -118,19 +117,19 @@
                 const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
                 const filePath = `uploads/${fileName}`;
 
-                const { error: uploadError } = await supabase.storage.from(BUCKET_NAME).upload(filePath, file);
+                const { error: uploadError } = await supabaseClient.storage.from(BUCKET_NAME).upload(filePath, file);
                 if (uploadError) throw new Error("Upload failed: " + uploadError.message);
 
                 statusMsg.textContent = "File uploaded. Updating database...";
 
-                const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(filePath);
+                const { data: urlData } = supabaseClient.storage.from(BUCKET_NAME).getPublicUrl(filePath);
                 const publicUrl = urlData.publicUrl;
 
-                const { data: mediaData, error: mediaError } = await supabase.from('media').insert([{ file_name: file.name, file_url: publicUrl, media_type: 'image' }]).select();
+                const { data: mediaData, error: mediaError } = await supabaseClient.from('media').insert([{ file_name: file.name, file_url: publicUrl, media_type: 'image' }]).select();
                 if (mediaError) throw new Error("Database error (media): " + mediaError.message);
                 const newMediaId = mediaData[0].id;
 
-                const { data: currentPlaylist, error: fetchOrderError } = await supabase.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
+                const { data: currentPlaylist, error: fetchOrderError } = await supabaseClient.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
                 if (fetchOrderError) throw new Error("Database error (fetching order): " + fetchOrderError.message);
 
                 let nextOrder = 1;
@@ -138,7 +137,7 @@
                     nextOrder = currentPlaylist[0].display_order + 1;
                 }
 
-                const { error: playlistError } = await supabase.from('playlist_items').insert([{ screen_id: screenId, media_id: newMediaId, display_order: nextOrder, duration_seconds: duration }]);
+                const { error: playlistError } = await supabaseClient.from('playlist_items').insert([{ screen_id: screenId, media_id: newMediaId, display_order: nextOrder, duration_seconds: duration }]);
                 if (playlistError) throw new Error("Database error (playlist): " + playlistError.message);
 
                 statusMsg.style.color = '#16a34a';
@@ -155,7 +154,6 @@
             }
         }
 
-        // Initialize App
         loadScreens();
     </script>
 </body>
