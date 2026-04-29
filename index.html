@@ -8,8 +8,8 @@
     <style>
         body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
         .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
-        .sidebar h2 { text-align: center; padding: 20px 0; margin: 0; border-bottom: 1px solid #334155; font-size: 1.4rem; }
-        .amharic-sub { display: block; font-size: 0.9rem; font-weight: normal; color: #94a3b8; margin-top: 5px; }
+        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; margin: 0; }
+        .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-weight: normal; }
         .nav-items { list-style: none; padding: 0; margin: 0; }
         .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
         .nav-items li:hover, .nav-items li.active { background-color: #3b82f6; }
@@ -35,15 +35,16 @@
         <ul class="nav-items">
             <li class="active" onclick="location.href='index.html'">Dashboard</li>
             <li onclick="location.href='screens.html'">Screens Manager</li>
+            <li onclick="location.href='library.html'">Media Library</li>
         </ul>
     </div>
     <div class="main-content">
         <h1>Dashboard</h1>
         <div class="grid-container">
             <div class="card" style="border-top-color: #10b981;">
-                <h3>Add Screen</h3>
-                <div class="form-group"><label>6-Digit Code</label><input type="text" id="pair-code"></div>
-                <div class="form-group"><label>Screen Name</label><input type="text" id="pair-name"></div>
+                <h3>Add New Screen</h3>
+                <div class="form-group"><label>6-Digit Code</label><input type="text" id="pair-code" placeholder="Check your TV"></div>
+                <div class="form-group"><label>Screen Name</label><input type="text" id="pair-name" placeholder="e.g. Lobby TV"></div>
                 <button onclick="pairScreen()">Pair Screen</button>
                 <div id="pair-status" class="status-msg"></div>
             </div>
@@ -51,15 +52,14 @@
                 <h3>Upload Media</h3>
                 <div class="form-group">
                     <label>Target Screen</label>
-                    <select id="screen-select"><option>Loading...</option></select>
+                    <select id="screen-select"><option>Loading paired screens...</option></select>
                 </div>
                 <div class="form-group">
-                    <label>File</label>
+                    <label>File (Image or MP4)</label>
                     <input type="file" id="media-file" accept="image/*,video/mp4">
-                    <div id="file-details" class="file-details">
-                        <b>Size:</b> <span id="info-size"></span> MB
-                    </div>
+                    <div id="file-details" class="file-details"><b>Size:</b> <span id="info-size"></span> MB</div>
                 </div>
+                <div class="form-group"><label>Image Duration (s)</label><input type="number" id="duration" value="10"></div>
                 <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Deploy</button>
                 <div class="progress-wrapper" id="progress-wrapper">
                     <div class="progress-container">
@@ -75,8 +75,6 @@
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        
-        // sbClient instead of supabase to prevent clash
         const sbClient = window.supabase.createClient(S_URL, S_KEY);
 
         document.getElementById('media-file').onchange = function() {
@@ -88,10 +86,9 @@
         };
 
         async function loadScreens() {
-            const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
             const sel = document.getElementById('screen-select');
-            if (error) { console.error(error); return; }
-            sel.innerHTML = data?.length ? data.map(s => `<option value="${s.id}">${s.name}</option>`).join('') : '<option>No paired screens</option>';
+            sel.innerHTML = data?.length ? data.map(s => `<option value="${s.id}">${s.name}</option>`).join('') : '<option>No paired screens found</option>';
         }
 
         async function pairScreen() {
@@ -102,12 +99,13 @@
                 await sbClient.from('screens').update({ name: n, is_paired: true, pairing_code: null }).eq('id', data[0].id);
                 document.getElementById('pair-status').textContent = "Paired!";
                 loadScreens();
-            }
+            } else { document.getElementById('pair-status').textContent = "Invalid Code."; }
         }
 
         async function uploadAndDeploy() {
             const sid = document.getElementById('screen-select').value;
             const file = document.getElementById('media-file').files[0];
+            const dur = document.getElementById('duration').value;
             if(!sid || !file) return;
 
             const btn = document.getElementById('deploy-btn');
@@ -116,9 +114,7 @@
             const wrap = document.getElementById('progress-wrapper');
             const status = document.getElementById('deploy-status');
 
-            btn.disabled = true;
-            wrap.style.display = 'block';
-
+            btn.disabled = true; wrap.style.display = 'block';
             const ext = file.name.split('.').pop().toLowerCase();
             const path = `uploads/${Date.now()}.${ext}`;
 
@@ -126,8 +122,7 @@
                 const { error } = await sbClient.storage.from('signage-media').upload(path, file, {
                     onUploadProgress: (p) => {
                         const pct = Math.round((p.loaded / p.total) * 100);
-                        bar.style.width = pct + '%';
-                        txt.textContent = pct + '%';
+                        bar.style.width = pct + '%'; txt.textContent = pct + '%';
                         status.textContent = `Uploading... ${(p.loaded / 1048576).toFixed(1)}MB`;
                     }
                 });
@@ -135,17 +130,13 @@
 
                 const { data: urlObj } = sbClient.storage.from('signage-media').getPublicUrl(path);
                 const { data: mData } = await sbClient.from('media').insert([{ file_name: file.name, file_url: urlObj.publicUrl, media_type: (ext === 'mp4' ? 'video' : 'image') }]).select();
-                
                 const { data: cPl } = await sbClient.from('playlist_items').select('display_order').eq('screen_id', sid).order('display_order', {ascending:false}).limit(1);
                 const ord = (cPl?.[0]?.display_order || 0) + 1;
 
-                await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, display_order: ord, duration_seconds: 10 }]);
-                status.textContent = "Success!";
-            } catch (e) {
-                status.textContent = "Error: " + e.message;
-            } finally {
-                btn.disabled = false;
-            }
+                await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, display_order: ord, duration_seconds: dur }]);
+                status.style.color = "#10b981"; status.textContent = "Success! Content is live.";
+            } catch (e) { status.textContent = "Error: Check file size."; } 
+            finally { btn.disabled = false; }
         }
         loadScreens();
     </script>
