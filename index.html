@@ -21,16 +21,21 @@
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; color: #475569; font-weight: 600; font-size: 0.95rem; }
         input[type="text"], input[type="file"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; background-color: #f8fafc; font-size: 1rem; }
-        input[type="file"] { padding: 8px; background-color: white; }
-        button { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.2s; width: 100%; }
+        
+        /* File Info Display */
+        #file-info { font-size: 0.85rem; color: #64748b; margin-top: 5px; font-weight: bold; display: none; }
+        
+        button { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.2s; width: 100%; margin-top: 10px; }
         button:hover { background-color: #2563eb; }
         button.success-btn { background-color: #10b981; }
-        button.success-btn:hover { background-color: #059669; }
         button:disabled { background-color: #94a3b8; cursor: not-allowed; }
         
-        /* Progress Bar Styles */
-        .progress-container { width: 100%; background-color: #e2e8f0; border-radius: 10px; margin-top: 15px; display: none; overflow: hidden; height: 20px; }
-        .progress-bar { width: 0%; height: 100%; background-color: #3b82f6; transition: width 0.3s ease; }
+        /* Progress Bar UI */
+        .progress-wrapper { margin-top: 20px; display: none; }
+        .progress-container { width: 100%; background-color: #e2e8f0; border-radius: 10px; overflow: hidden; height: 24px; position: relative; }
+        .progress-bar { width: 0%; height: 100%; background-color: #10b981; transition: width 0.1s linear; }
+        .progress-text { position: absolute; width: 100%; text-align: center; top: 0; left: 0; line-height: 24px; font-size: 0.85rem; font-weight: bold; color: #1e293b; }
+        
         .status-msg { margin-top: 10px; font-weight: bold; text-align: center; min-height: 20px; font-size: 0.9rem; }
     </style>
 </head>
@@ -51,13 +56,12 @@
         <div class="grid-container">
             <div class="card" style="border-top: 4px solid #10b981;">
                 <h3 style="margin-top: 0;">Add New Screen</h3>
-                <p style="color: #64748b; font-size: 0.85rem; margin-top: -10px; margin-bottom: 25px;">Enter the 6-digit code shown on your TV to pair it.</p>
                 <div class="form-group">
                     <label>Pairing Code</label>
                     <input type="text" id="pair-code" placeholder="e.g. 123456" maxlength="6">
                 </div>
                 <div class="form-group">
-                    <label>Give this Screen a Name</label>
+                    <label>Screen Name</label>
                     <input type="text" id="pair-name" placeholder="e.g. Front Office TV">
                 </div>
                 <button class="success-btn" onclick="pairScreen()" id="pair-btn">Pair Screen</button>
@@ -66,7 +70,6 @@
 
             <div class="card" style="border-top: 4px solid #3b82f6;">
                 <h3 style="margin-top: 0;">Upload Content</h3>
-                <p style="color: #64748b; font-size: 0.85rem; margin-top: -10px; margin-bottom: 25px;">Push images or MP4 videos to a paired screen.</p>
                 <div class="form-group">
                     <label>Target Screen</label>
                     <select id="screen-select">
@@ -74,17 +77,22 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Select File</label>
-                    <input type="file" id="media-file" accept="image/png, image/jpeg, image/webp, video/mp4" required>
+                    <label>Select File (Images or MP4)</label>
+                    <input type="file" id="media-file" accept="image/png, image/jpeg, image/webp, video/mp4" onchange="updateFileInfo()">
+                    <div id="file-info">Selected Size: 0 MB</div>
                 </div>
                 <div class="form-group">
                     <label>Image Duration (Seconds)</label>
-                    <input type="number" id="duration" value="10" min="1" required>
+                    <input type="number" id="duration" value="10" min="1">
                 </div>
+                
                 <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Deploy</button>
                 
-                <div class="progress-container" id="progress-container">
-                    <div class="progress-bar" id="progress-bar"></div>
+                <div class="progress-wrapper" id="progress-wrapper">
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progress-bar"></div>
+                        <div class="progress-text" id="progress-percent">0%</div>
+                    </div>
                 </div>
                 <div id="deploy-status" class="status-msg"></div>
             </div>
@@ -97,105 +105,96 @@
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         const BUCKET_NAME = 'signage-media';
 
-        async function loadScreens() {
-            const { data: screens, error } = await supabaseClient.from('screens').select('id, name').eq('is_paired', true).order('name');
-            const select = document.getElementById('screen-select');
-            select.innerHTML = ''; 
-            if (error || !screens || screens.length === 0) {
-                select.innerHTML = '<option value="">No paired screens found.</option>';
-                return;
+        // Show file size immediately after selecting
+        function updateFileInfo() {
+            const fileInput = document.getElementById('media-file');
+            const fileInfo = document.getElementById('file-info');
+            if (fileInput.files.length > 0) {
+                const size = (fileInput.files[0].size / (1024 * 1024)).toFixed(2);
+                fileInfo.textContent = `Selected Size: ${size} MB`;
+                fileInfo.style.display = 'block';
+                if (size > 50) fileInfo.style.color = 'red';
+                else fileInfo.style.color = '#64748b';
             }
-            screens.forEach(screen => {
-                const option = document.createElement('option');
-                option.value = screen.id;
-                option.textContent = screen.name;
-                select.appendChild(option);
+        }
+
+        async function loadScreens() {
+            const { data: screens } = await supabaseClient.from('screens').select('id, name').eq('is_paired', true).order('name');
+            const select = document.getElementById('screen-select');
+            select.innerHTML = screens?.length ? '' : '<option value="">No paired screens found.</option>';
+            screens?.forEach(screen => {
+                const opt = document.createElement('option');
+                opt.value = screen.id; opt.textContent = screen.name;
+                select.appendChild(opt);
             });
         }
 
         async function pairScreen() {
             const code = document.getElementById('pair-code').value.trim();
             const name = document.getElementById('pair-name').value.trim();
-            const statusMsg = document.getElementById('pair-status');
-            if (!code || !name) { statusMsg.textContent = "Enter both code and name."; return; }
+            if (!code || !name) return;
             const { data } = await supabaseClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false);
-            if (!data || data.length === 0) { statusMsg.textContent = "Invalid code."; return; }
-            await supabaseClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data[0].id);
-            statusMsg.textContent = "Paired!";
-            loadScreens();
+            if (data?.length) {
+                await supabaseClient.from('screens').update({ name, is_paired: true, pairing_code: null }).eq('id', data[0].id);
+                document.getElementById('pair-status').textContent = "Paired!";
+                loadScreens();
+            }
         }
 
         async function uploadAndDeploy() {
             const screenId = document.getElementById('screen-select').value;
             const fileInput = document.getElementById('media-file');
-            const duration = document.getElementById('duration').value;
             const statusMsg = document.getElementById('deploy-status');
-            const deployBtn = document.getElementById('deploy-btn');
-            const progressContainer = document.getElementById('progress-container');
+            const progressWrapper = document.getElementById('progress-wrapper');
             const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-percent');
+            const deployBtn = document.getElementById('deploy-btn');
 
-            if (!screenId || fileInput.files.length === 0) {
-                statusMsg.textContent = "Select a screen and file.";
+            if (!screenId || !fileInput.files[0]) {
+                statusMsg.textContent = "Please select a screen and file.";
                 return;
             }
 
             const file = fileInput.files[0];
             const fileExt = file.name.split('.').pop().toLowerCase();
-            const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+            const fileName = `${Math.random().toString(36).substring(2, 12)}_${Date.now()}.${fileExt}`;
             const filePath = `uploads/${fileName}`;
-            let mediaType = (fileExt === 'mp4') ? 'video' : 'image';
 
             deployBtn.disabled = true;
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            statusMsg.textContent = "Starting upload...";
+            progressWrapper.style.display = 'block';
+            statusMsg.textContent = "Uploading...";
 
             try {
-                // Using TUS (Resumable) Upload for progress tracking
                 const { data, error } = await supabaseClient.storage.from(BUCKET_NAME).upload(filePath, file, {
-                    cacheControl: '3600',
-                    upsert: false,
-                    // Progress callback
                     onUploadProgress: (progress) => {
-                        const percent = (progress.loaded / progress.total) * 100;
+                        const percent = Math.round((progress.loaded / progress.total) * 100);
                         progressBar.style.width = percent + '%';
-                        statusMsg.textContent = `Uploading: ${Math.round(percent)}%`;
-                    },
+                        progressText.textContent = percent + '%';
+                    }
                 });
 
                 if (error) throw error;
 
-                statusMsg.textContent = "Syncing with screen...";
                 const { data: urlData } = supabaseClient.storage.from(BUCKET_NAME).getPublicUrl(filePath);
-                
                 const { data: mediaData } = await supabaseClient.from('media').insert([{ 
-                    file_name: file.name, 
-                    file_url: urlData.publicUrl, 
-                    media_type: mediaType 
+                    file_name: file.name, file_url: urlData.publicUrl, media_type: (fileExt === 'mp4' ? 'video' : 'image') 
                 }]).select();
-                
-                const { data: currentPlaylist } = await supabaseClient.from('playlist_items')
-                    .select('display_order').eq('screen_id', screenId)
-                    .order('display_order', { ascending: false }).limit(1);
 
-                let nextOrder = (currentPlaylist && currentPlaylist.length > 0) ? currentPlaylist[0].display_order + 1 : 1;
+                const { data: currentItems } = await supabaseClient.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
+                const nextOrder = (currentItems?.length ? currentItems[0].display_order : 0) + 1;
 
                 await supabaseClient.from('playlist_items').insert([{ 
-                    screen_id: screenId, 
-                    media_id: mediaData[0].id, 
-                    display_order: nextOrder, 
-                    duration_seconds: duration 
+                    screen_id: screenId, media_id: mediaData[0].id, display_order: nextOrder, duration_seconds: document.getElementById('duration').value 
                 }]);
 
                 statusMsg.style.color = '#10b981';
                 statusMsg.textContent = "Success! Content is live.";
-                fileInput.value = ''; 
             } catch (err) {
                 statusMsg.style.color = '#dc2626';
                 statusMsg.textContent = "Upload failed. Check file size.";
             } finally {
                 deployBtn.disabled = false;
-                setTimeout(() => { progressContainer.style.display = 'none'; }, 2000);
+                setTimeout(() => { progressWrapper.style.display = 'none'; }, 3000);
             }
         }
 
