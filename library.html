@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Library | ነሃስ ማስታወቂያ</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
+        .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; }
+        .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+        .nav-items { list-style: none; padding: 0; margin: 0; }
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
+        .nav-items li:hover, .nav-items li.active { background-color: #3b82f6; }
+
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        
+        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .media-card { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+        .media-preview { width: 100%; height: 150px; object-fit: contain; background: #000; }
+        .video-label { height: 150px; background: #1e293b; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        
+        .card-body { padding: 15px; flex: 1; }
+        .card-body b { display: block; margin-bottom: 10px; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .assign-box { display: flex; gap: 5px; margin-top: 10px; }
+        select { flex: 1; padding: 5px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 0.8rem; }
+        .push-btn { background: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+        .delete-file-btn { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.75rem; margin-top: 10px; text-decoration: underline; padding: 0; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
+        <ul class="nav-items">
+            <li onclick="location.href='index.html'">Dashboard</li>
+            <li onclick="location.href='screens.html'">Screens Manager</li>
+            <li class="active">Media Library</li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>Media Library</h1>
+            <button onclick="loadLibrary()" style="padding: 8px 15px; cursor: pointer;">Refresh Library</button>
+        </div>
+
+        <div id="library-container" class="library-grid">
+            </div>
+    </div>
+
+    <script>
+        const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6Mj어93AwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const sbClient = window.supabase.createClient(S_URL, S_KEY);
+        
+        let pairedScreens = [];
+
+        async function loadData() {
+            // 1. Get screens for the dropdowns
+            const { data: screens } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
+            pairedScreens = screens || [];
+            
+            // 2. Get all media
+            loadLibrary();
+        }
+
+        async function loadLibrary() {
+            const container = document.getElementById('library-container');
+            container.innerHTML = 'Loading library...';
+
+            const { data: media, error } = await sbClient.from('media').select('*').order('created_at', { ascending: false });
+
+            container.innerHTML = '';
+            if (!media || media.length === 0) {
+                container.innerHTML = '<p>Your library is empty. Upload something from the Dashboard!</p>';
+                return;
+            }
+
+            media.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'media-card';
+                
+                const preview = item.media_type === 'video' 
+                    ? `<div class="video-label">MP4 VIDEO</div>` 
+                    : `<img src="${item.file_url}" class="media-preview">`;
+
+                const screenOptions = pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+                card.innerHTML = `
+                    ${preview}
+                    <div class="card-body">
+                        <b>${item.file_name}</b>
+                        <div class="assign-box">
+                            <select id="select-${item.id}">
+                                ${screenOptions || '<option>No screens</option>'}
+                            </select>
+                            <button class="push-btn" onclick="assignToScreen('${item.id}')">Push</button>
+                        </div>
+                        <button class="delete-file-btn" onclick="deleteFromLibrary('${item.id}', '${item.file_url}')">Delete Permanently</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function assignToScreen(mediaId) {
+            const screenId = document.getElementById(`select-${mediaId}`).value;
+            if (!screenId) return;
+
+            // Find current order to append to the end
+            const { data: currentItems } = await sbClient.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
+            const nextOrder = (currentItems?.length ? currentItems[0].display_order : 0) + 1;
+
+            const { error } = await sbClient.from('playlist_items').insert([{ 
+                screen_id: screenId, 
+                media_id: mediaId, 
+                display_order: nextOrder, 
+                duration_seconds: 10 
+            }]);
+
+            if (!error) alert("Content pushed to screen!");
+            else alert("Error pushing content.");
+        }
+
+        async function deleteFromLibrary(id, url) {
+            if (!confirm("This will remove the file from ALL screens and delete it from storage. Continue?")) return;
+
+            // 1. Delete from playlist_items (Cascade)
+            await sbClient.from('playlist_items').delete().eq('media_id', id);
+            
+            // 2. Delete from media table
+            await sbClient.from('media').delete().eq('id', id);
+
+            // 3. Delete from Storage bucket
+            const path = url.split('/public/signage-media/')[1];
+            await sbClient.storage.from('signage-media').remove([path]);
+
+            loadLibrary();
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
