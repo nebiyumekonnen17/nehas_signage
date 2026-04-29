@@ -31,7 +31,6 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Check local storage so the Pi remembers who it is after a reboot
         let SCREEN_ID = localStorage.getItem('nehas_screen_id');
         let playlist = [];
         let currentIndex = 0;
@@ -39,34 +38,27 @@
 
         async function bootSequence() {
             if (!SCREEN_ID) {
-                // 1. Never paired before. Generate a 6 digit code.
                 const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-                
-                // Save it to database
                 const { data, error } = await supabaseClient.from('screens')
                     .insert([{ name: 'Unpaired Display', pairing_code: newCode, is_paired: false }]).select();
                 
                 if (data) {
                     SCREEN_ID = data[0].id;
-                    localStorage.setItem('nehas_screen_id', SCREEN_ID); // Remember for next time
+                    localStorage.setItem('nehas_screen_id', SCREEN_ID); 
                     renderPairingScreen(newCode);
                     listenForPairing();
                 }
             } else {
-                // 2. Previously connected. Check if it was fully paired.
                 const { data } = await supabaseClient.from('screens').select('is_paired, pairing_code').eq('id', SCREEN_ID).single();
                 
                 if (data && data.is_paired) {
                     startSignage();
                 } else if (data) {
-                    // It generated a code but admin never finished pairing it
                     renderPairingScreen(data.pairing_code);
                     listenForPairing();
                 }
             }
         }
-
-        // --- RENDER FUNCTIONS ---
 
         function renderPairingScreen(code) {
             document.getElementById('media-container').innerHTML = `
@@ -86,10 +78,7 @@
                 </div>`;
         }
 
-        // --- CORE LOGIC ---
-
         function listenForPairing() {
-            // Listen to see when the Admin updates this screen's "is_paired" status
             supabaseClient.channel('auth_channel').on('postgres_changes', 
                 { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` },
                 (payload) => {
@@ -125,10 +114,30 @@
             }
 
             const currentItem = playlist[currentIndex];
-            container.innerHTML = `<img src="${currentItem.media.file_url}" />`;
+            const mediaData = currentItem.media;
 
             currentIndex = (currentIndex + 1) % playlist.length;
-            loopTimer = setTimeout(playNext, currentItem.duration_seconds * 1000);
+
+            if (mediaData.media_type === 'image') {
+                container.innerHTML = `<img src="${mediaData.file_url}" />`;
+                loopTimer = setTimeout(playNext, currentItem.duration_seconds * 1000);
+                
+            } else if (mediaData.media_type === 'video') {
+                container.innerHTML = `
+                    <video id="signage-video" src="${mediaData.file_url}" autoplay muted style="width: 100%; height: 100%; object-fit: contain; outline: none;"></video>
+                `;
+                
+                const vidElement = document.getElementById('signage-video');
+                
+                vidElement.onended = () => {
+                    playNext();
+                };
+                
+                vidElement.onerror = () => {
+                    console.error("Video failed to play, skipping...");
+                    playNext();
+                };
+            }
         }
 
         function subscribeToPlaylistChanges() {
@@ -138,7 +147,6 @@
             ).subscribe();
         }
 
-        // Start the engine
         bootSequence();
     </script>
 </body>
