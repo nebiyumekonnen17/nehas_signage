@@ -3,19 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nehas Signage Player</title>
+    <title>Nehas Signage Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background-color: #0f172a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        body, html { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            background-color: #000; overflow: hidden; 
+            display: flex; justify-content: center; align-items: center; 
+            font-family: 'Segoe UI', sans-serif; color: #fff; 
+        }
         #media-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-        #media-container img { width: 100%; height: 100%; object-fit: contain; }
+        #media-container img, #media-container video { width: 100%; height: 100%; object-fit: contain; outline: none; border: none; }
         
-        /* Graphic Designs */
-        .pairing-screen { text-align: center; background: #1e293b; padding: 60px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); border: 2px solid #334155;}
-        .pairing-code { font-size: 6rem; font-weight: bold; color: #3b82f6; letter-spacing: 10px; margin: 20px 0; background: #0f172a; padding: 20px 40px; border-radius: 12px;}
+        /* Pairing Screen Style */
+        .pairing-screen { text-align: center; background: #1e293b; padding: 60px; border-radius: 16px; border: 2px solid #334155; }
+        .pairing-code { font-size: 6rem; font-weight: bold; color: #3b82f6; letter-spacing: 10px; margin: 20px 0; background: #0f172a; padding: 20px 40px; border-radius: 12px; }
         
+        /* Default Brand Graphic */
         .default-graphic { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        .default-graphic h1 { font-size: 5rem; margin: 0; text-shadow: 2px 2px 10px rgba(0,0,0,0.5); letter-spacing: 2px; }
+        .default-graphic h1 { font-size: 5rem; margin: 0; text-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
         .default-graphic h2 { font-size: 3rem; margin-top: 15px; font-weight: 300; color: #93c5fd; }
         .default-graphic p { margin-top: 50px; font-size: 1.5rem; opacity: 0.7; border-top: 1px solid #3b82f6; padding-top: 30px; }
     </style>
@@ -23,7 +29,7 @@
 <body>
 
     <div id="media-container">
-        <h1>Initializing Display...</h1>
+        <h1>Initializing Nehas Signage...</h1>
     </div>
 
     <script>
@@ -36,10 +42,18 @@
         let currentIndex = 0;
         let loopTimer;
 
+        // Force Fullscreen on first click (helps during setup)
+        document.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => console.log(e));
+            }
+        });
+
         async function bootSequence() {
             if (!SCREEN_ID) {
+                // Generate fresh pairing code
                 const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-                const { data, error } = await supabaseClient.from('screens')
+                const { data } = await supabaseClient.from('screens')
                     .insert([{ name: 'Unpaired Display', pairing_code: newCode, is_paired: false }]).select();
                 
                 if (data) {
@@ -49,6 +63,7 @@
                     listenForPairing();
                 }
             } else {
+                // Check current status
                 const { data } = await supabaseClient.from('screens').select('is_paired, pairing_code').eq('id', SCREEN_ID).single();
                 
                 if (data && data.is_paired) {
@@ -56,6 +71,10 @@
                 } else if (data) {
                     renderPairingScreen(data.pairing_code);
                     listenForPairing();
+                } else {
+                    // Reset if screen was deleted from DB
+                    localStorage.removeItem('nehas_screen_id');
+                    location.reload();
                 }
             }
         }
@@ -64,7 +83,7 @@
             document.getElementById('media-container').innerHTML = `
                 <div class="pairing-screen">
                     <h2>NEHAS SIGNAGE</h2>
-                    <p style="font-size: 1.2rem; color: #94a3b8;">Enter this code in your Admin Dashboard to pair this screen.</p>
+                    <p style="color: #94a3b8;">Enter this code in your Admin Dashboard:</p>
                     <div class="pairing-code">${code}</div>
                 </div>`;
         }
@@ -74,18 +93,14 @@
                 <div class="default-graphic">
                     <h1>Nehas Digital Signage</h1>
                     <h2>ነሃስ ማስታወቂያ</h2>
-                    <p>Ready for content.<br>Upload media from the dashboard.</p>
+                    <p>No content scheduled.<br>Upload via Dashboard.</p>
                 </div>`;
         }
 
         function listenForPairing() {
             supabaseClient.channel('auth_channel').on('postgres_changes', 
                 { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` },
-                (payload) => {
-                    if (payload.new.is_paired) {
-                        startSignage();
-                    }
-                }
+                (payload) => { if (payload.new.is_paired) startSignage(); }
             ).subscribe();
         }
 
@@ -96,7 +111,7 @@
 
         async function fetchPlaylist() {
             const { data } = await supabaseClient.from('playlist_items')
-                .select(`duration_seconds, display_order, media ( file_url, media_type )`)
+                .select(`duration_seconds, media ( file_url, media_type )`)
                 .eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
             
             playlist = data || [];
@@ -116,6 +131,7 @@
             const currentItem = playlist[currentIndex];
             const mediaData = currentItem.media;
 
+            // Advance index for next round
             currentIndex = (currentIndex + 1) % playlist.length;
 
             if (mediaData.media_type === 'image') {
@@ -124,26 +140,18 @@
                 
             } else if (mediaData.media_type === 'video') {
                 container.innerHTML = `
-                    <video id="signage-video" src="${mediaData.file_url}" autoplay muted style="width: 100%; height: 100%; object-fit: contain; outline: none;"></video>
+                    <video id="signage-video" src="${mediaData.file_url}" autoplay muted playsinline></video>
                 `;
-                
-                const vidElement = document.getElementById('signage-video');
-                
-                vidElement.onended = () => {
-                    playNext();
-                };
-                
-                vidElement.onerror = () => {
-                    console.error("Video failed to play, skipping...");
-                    playNext();
-                };
+                const vid = document.getElementById('signage-video');
+                vid.onended = () => playNext();
+                vid.onerror = () => { console.error("Video Error"); playNext(); };
             }
         }
 
         function subscribeToPlaylistChanges() {
             supabaseClient.channel('playlist_channel').on('postgres_changes',
                 { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` },
-                () => { fetchPlaylist(); }
+                () => fetchPlaylist()
             ).subscribe();
         }
 
