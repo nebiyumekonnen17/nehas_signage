@@ -23,14 +23,12 @@
     </div>
 
     <script>
-        // --- API CONFIGURATION ---
         const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         
-        // This is only declared ONCE now.
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // BUG FIX: Renamed variable
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Get the screen ID from the URL (e.g., player.html?screen=1234-5678-abcd)
         const urlParams = new URLSearchParams(window.location.search);
         let SCREEN_ID = urlParams.get('screen');
 
@@ -41,7 +39,7 @@
         async function fetchPlaylist() {
             if (!SCREEN_ID) return;
             
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('playlist_items')
                 .select(`duration_seconds, display_order, media ( file_url, media_type )`)
                 .eq('screen_id', SCREEN_ID)
@@ -49,7 +47,7 @@
 
             if (error) {
                 console.error("Error fetching playlist:", error);
-                document.getElementById('media-container').innerHTML = `<h1>Error loading data</h1>`;
+                document.getElementById('media-container').innerHTML = `<h1>Error loading data: ${error.message}</h1>`;
                 return;
             }
 
@@ -85,7 +83,7 @@
         function subscribeToChanges() {
             if (!SCREEN_ID) return;
 
-            supabase
+            supabaseClient
                 .channel('playlist_updates')
                 .on(
                     'postgres_changes',
@@ -96,11 +94,11 @@
         }
 
         // Boot sequence
-        if (!SCREEN_ID) {
+        if (!SCREEN_ID || SCREEN_ID === 'YOUR_SCREEN_ID') {
             document.getElementById('media-container').innerHTML = `
                 <div style="text-align: center;">
                     <h1>Screen ID Missing</h1>
-                    <p>Open this page with a screen ID in the URL.<br>Example: <b>player.html?screen=YOUR_SCREEN_UUID</b></p>
+                    <p>Open this page with an actual screen ID from your database in the URL.<br>Example: <b>player.html?screen=1234abcd-1234-abcd-1234-abcd1234abcd</b></p>
                 </div>`;
         } else {
             fetchPlaylist();
