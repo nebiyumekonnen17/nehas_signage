@@ -63,7 +63,7 @@
 
             <div class="card" style="border-top: 4px solid #3b82f6;">
                 <h3 style="margin-top: 0;">Upload Content</h3>
-                <p style="color: #64748b; font-size: 0.9rem; margin-top: -10px; margin-bottom: 25px;">Push media to a paired screen.</p>
+                <p style="color: #64748b; font-size: 0.9rem; margin-top: -10px; margin-bottom: 25px;">Push images or video to a paired screen.</p>
                 
                 <div class="form-group">
                     <label>Target Screen</label>
@@ -72,11 +72,11 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Select Image</label>
-                    <input type="file" id="media-file" accept="image/png, image/jpeg, image/webp" required>
+                    <label>Select File</label>
+                    <input type="file" id="media-file" accept="image/png, image/jpeg, image/webp, video/mp4" required>
                 </div>
                 <div class="form-group">
-                    <label>Display Duration (Seconds)</label>
+                    <label>Display Duration (Seconds - Images Only)</label>
                     <input type="number" id="duration" value="10" min="1" required>
                 </div>
                 <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Deploy</button>
@@ -92,7 +92,6 @@
         const BUCKET_NAME = 'signage-media';
 
         async function loadScreens() {
-            // Only load screens that have been paired
             const { data: screens, error } = await supabaseClient.from('screens').select('id, name').eq('is_paired', true).order('name');
             const select = document.getElementById('screen-select');
             select.innerHTML = ''; 
@@ -123,7 +122,6 @@
             statusMsg.style.color = '#3b82f6';
             statusMsg.textContent = "Searching for screen...";
 
-            // 1. Find the screen with this code
             const { data, error } = await supabaseClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false);
             
             if (error || data.length === 0) {
@@ -134,7 +132,6 @@
 
             const targetScreenId = data[0].id;
 
-            // 2. Update the screen to paired
             const { error: updateError } = await supabaseClient.from('screens')
                 .update({ name: name, is_paired: true, pairing_code: null })
                 .eq('id', targetScreenId);
@@ -150,7 +147,7 @@
             document.getElementById('pair-code').value = '';
             document.getElementById('pair-name').value = '';
             
-            loadScreens(); // Refresh the dropdown
+            loadScreens();
         }
 
         async function uploadAndDeploy() {
@@ -173,9 +170,15 @@
             statusMsg.textContent = "Uploading file...";
 
             try {
-                const fileExt = file.name.split('.').pop();
+                const fileExt = file.name.split('.').pop().toLowerCase();
                 const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
                 const filePath = `uploads/${fileName}`;
+
+                // Determine media type for the database
+                let mediaType = 'image';
+                if (fileExt === 'mp4') {
+                    mediaType = 'video';
+                }
 
                 const { error: uploadError } = await supabaseClient.storage.from(BUCKET_NAME).upload(filePath, file);
                 if (uploadError) throw new Error("Upload failed.");
@@ -183,7 +186,7 @@
                 statusMsg.textContent = "Updating database...";
                 const { data: urlData } = supabaseClient.storage.from(BUCKET_NAME).getPublicUrl(filePath);
                 
-                const { data: mediaData, error: mediaError } = await supabaseClient.from('media').insert([{ file_name: file.name, file_url: urlData.publicUrl, media_type: 'image' }]).select();
+                const { data: mediaData, error: mediaError } = await supabaseClient.from('media').insert([{ file_name: file.name, file_url: urlData.publicUrl, media_type: mediaType }]).select();
                 if (mediaError) throw new Error("Database error.");
                 
                 const { data: currentPlaylist } = await supabaseClient.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
