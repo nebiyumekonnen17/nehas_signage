@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signage CMS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
+        .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { text-align: center; padding: 20px 0; margin: 0; border-bottom: 1px solid #334155; font-size: 1.2rem; letter-spacing: 1px; }
+        .nav-items { list-style: none; padding: 0; margin: 0; }
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: background 0.2s; }
+        .nav-items li:hover, .nav-items li.active { background-color: #3b82f6; }
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .header h1 { margin: 0; color: #0f172a; font-size: 1.8rem; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 20px; max-width: 600px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #475569; font-weight: 600; font-size: 0.95rem; }
+        input[type="file"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; background-color: #f8fafc; }
+        input[type="file"] { padding: 8px; background-color: white; }
+        button { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.2s; width: 100%; }
+        button:hover { background-color: #2563eb; }
+        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        #status-msg { margin-top: 15px; font-weight: bold; text-align: center; min-height: 20px; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>SIGNAGE ADMIN</h2>
+        <ul class="nav-items">
+            <li class="active">Dashboard</li>
+            <li>Screens</li>
+            <li>Media Library</li>
+            <li>Settings</li>
+        </ul>
+    </div>
+    <div class="main-content">
+        <div class="header">
+            <h1>Dashboard Overview</h1>
+        </div>
+        <div class="card">
+            <h3 style="margin-top: 0;">Upload & Deploy Media</h3>
+            <p style="color: #64748b; font-size: 0.9rem; margin-top: -10px; margin-bottom: 25px;">Upload an image file directly to a screen's active rotation.</p>
+            
+            <div class="form-group">
+                <label for="screen-select">Target Screen</label>
+                <select id="screen-select">
+                    <option value="">Loading screens...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="media-file">Select Image</label>
+                <input type="file" id="media-file" accept="image/png, image/jpeg, image/webp" required>
+            </div>
+            <div class="form-group">
+                <label for="duration">Display Duration (Seconds)</label>
+                <input type="number" id="duration" value="10" min="1" required>
+            </div>
+            <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Deploy</button>
+            <div id="status-msg"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- API CONFIGURATION ---
+        const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        
+        // This is only declared ONCE now.
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const BUCKET_NAME = 'signage-media';
+
+        async function loadScreens() {
+            const { data: screens, error } = await supabase.from('screens').select('id, name').order('name');
+            if (error) { 
+                document.getElementById('status-msg').textContent = "Failed to load screens. Check API keys.";
+                document.getElementById('status-msg').style.color = '#dc2626';
+                console.error(error);
+                return; 
+            }
+            const select = document.getElementById('screen-select');
+            select.innerHTML = ''; 
+            if (screens.length === 0) {
+                select.innerHTML = '<option>No screens found. Add one in database.</option>';
+                return;
+            }
+            screens.forEach(screen => {
+                const option = document.createElement('option');
+                option.value = screen.id;
+                option.textContent = screen.name;
+                select.appendChild(option);
+            });
+        }
+
+        async function uploadAndDeploy() {
+            const screenId = document.getElementById('screen-select').value;
+            const fileInput = document.getElementById('media-file');
+            const duration = document.getElementById('duration').value;
+            const statusMsg = document.getElementById('status-msg');
+            const deployBtn = document.getElementById('deploy-btn');
+
+            if (!screenId || fileInput.files.length === 0) {
+                statusMsg.style.color = '#dc2626';
+                statusMsg.textContent = "Please select a screen and a file.";
+                return;
+            }
+
+            const file = fileInput.files[0];
+            deployBtn.disabled = true;
+            deployBtn.textContent = "Processing...";
+            statusMsg.style.color = '#3b82f6';
+            statusMsg.textContent = "Uploading file to Supabase...";
+
+            try {
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+                const filePath = `uploads/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage.from(BUCKET_NAME).upload(filePath, file);
+                if (uploadError) throw new Error("Upload failed: " + uploadError.message);
+
+                statusMsg.textContent = "File uploaded. Updating database...";
+
+                const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(filePath);
+                const publicUrl = urlData.publicUrl;
+
+                const { data: mediaData, error: mediaError } = await supabase.from('media').insert([{ file_name: file.name, file_url: publicUrl, media_type: 'image' }]).select();
+                if (mediaError) throw new Error("Database error (media): " + mediaError.message);
+                const newMediaId = mediaData[0].id;
+
+                const { data: currentPlaylist, error: fetchOrderError } = await supabase.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
+                if (fetchOrderError) throw new Error("Database error (fetching order): " + fetchOrderError.message);
+
+                let nextOrder = 1;
+                if (currentPlaylist && currentPlaylist.length > 0) {
+                    nextOrder = currentPlaylist[0].display_order + 1;
+                }
+
+                const { error: playlistError } = await supabase.from('playlist_items').insert([{ screen_id: screenId, media_id: newMediaId, display_order: nextOrder, duration_seconds: duration }]);
+                if (playlistError) throw new Error("Database error (playlist): " + playlistError.message);
+
+                statusMsg.style.color = '#16a34a';
+                statusMsg.textContent = "Success! Media deployed to screen.";
+                fileInput.value = ''; 
+
+            } catch (err) {
+                console.error(err);
+                statusMsg.style.color = '#dc2626';
+                statusMsg.textContent = err.message || "An unexpected error occurred.";
+            } finally {
+                deployBtn.disabled = false;
+                deployBtn.textContent = "Upload & Deploy";
+            }
+        }
+
+        // Initialize App
+        loadScreens();
+    </script>
+</body>
+</html>

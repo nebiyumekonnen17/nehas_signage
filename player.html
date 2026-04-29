@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signage Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            background-color: #000; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            font-family: sans-serif; color: #fff;
+        }
+        #media-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        #media-container img { width: 100%; height: 100%; object-fit: contain; }
+    </style>
+</head>
+<body>
+
+    <div id="media-container">
+        <h1>Loading playlist...</h1>
+    </div>
+
+    <script>
+        // --- API CONFIGURATION ---
+        const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        
+        // This is only declared ONCE now.
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Get the screen ID from the URL (e.g., player.html?screen=1234-5678-abcd)
+        const urlParams = new URLSearchParams(window.location.search);
+        let SCREEN_ID = urlParams.get('screen');
+
+        let playlist = [];
+        let currentIndex = 0;
+        let loopTimer;
+
+        async function fetchPlaylist() {
+            if (!SCREEN_ID) return;
+            
+            const { data, error } = await supabase
+                .from('playlist_items')
+                .select(`duration_seconds, display_order, media ( file_url, media_type )`)
+                .eq('screen_id', SCREEN_ID)
+                .order('display_order', { ascending: true });
+
+            if (error) {
+                console.error("Error fetching playlist:", error);
+                document.getElementById('media-container').innerHTML = `<h1>Error loading data</h1>`;
+                return;
+            }
+
+            playlist = data;
+            currentIndex = 0;
+            playNext();
+        }
+
+        function playNext() {
+            clearTimeout(loopTimer); 
+
+            const container = document.getElementById('media-container');
+
+            if (playlist.length === 0) {
+                container.innerHTML = '<h1>No media assigned to this screen.</h1>';
+                return;
+            }
+
+            const currentItem = playlist[currentIndex];
+            const mediaData = currentItem.media;
+
+            if (mediaData.media_type === 'image') {
+                container.innerHTML = `<img src="${mediaData.file_url}" alt="Signage Media" />`;
+            } else {
+                container.innerHTML = `<h2>Unsupported media type</h2>`;
+            }
+
+            currentIndex = (currentIndex + 1) % playlist.length;
+            const durationInMilliseconds = currentItem.duration_seconds * 1000;
+            loopTimer = setTimeout(playNext, durationInMilliseconds);
+        }
+
+        function subscribeToChanges() {
+            if (!SCREEN_ID) return;
+
+            supabase
+                .channel('playlist_updates')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` },
+                    () => { fetchPlaylist(); }
+                )
+                .subscribe();
+        }
+
+        // Boot sequence
+        if (!SCREEN_ID) {
+            document.getElementById('media-container').innerHTML = `
+                <div style="text-align: center;">
+                    <h1>Screen ID Missing</h1>
+                    <p>Open this page with a screen ID in the URL.<br>Example: <b>player.html?screen=YOUR_SCREEN_UUID</b></p>
+                </div>`;
+        } else {
+            fetchPlaylist();
+            subscribeToChanges();
+        }
+    </script>
+</body>
+</html>
