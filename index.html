@@ -6,36 +6,27 @@
     <title>Nehas Signage Admin | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
         .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
-        .sidebar h2 { text-align: center; padding: 20px 0; margin: 0; border-bottom: 1px solid #334155; font-size: 1.4rem; letter-spacing: 1px; }
+        .sidebar h2 { text-align: center; padding: 20px 0; margin: 0; border-bottom: 1px solid #334155; font-size: 1.4rem; }
         .amharic-sub { display: block; font-size: 0.9rem; font-weight: normal; color: #94a3b8; margin-top: 5px; }
         .nav-items { list-style: none; padding: 0; margin: 0; }
-        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: background 0.2s; }
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
         .nav-items li:hover, .nav-items li.active { background-color: #3b82f6; }
         .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .header { margin-bottom: 30px; }
-        .header h1 { margin: 0; color: #0f172a; font-size: 1.8rem; }
         .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; }
-        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #3b82f6; }
         .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; color: #475569; font-weight: 600; font-size: 0.95rem; }
-        input[type="text"], input[type="file"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; background-color: #f8fafc; font-size: 1rem; }
-        
-        .file-details { margin-top: 10px; padding: 10px; background: #f1f5f9; border-radius: 4px; border-left: 4px solid #3b82f6; display: none; font-size: 0.85rem; color: #334155; }
-        
-        button { background-color: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.2s; width: 100%; margin-top: 10px; }
-        button:hover { background-color: #2563eb; }
-        button.success-btn { background-color: #10b981; }
-        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
-        
-        /* Progress Bar UI */
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #475569; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+        .file-details { margin-top: 10px; padding: 10px; background: #f1f5f9; border-radius: 4px; display: none; font-size: 0.85rem; }
+        button { background-color: #3b82f6; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 10px; }
+        button:disabled { background-color: #94a3b8; }
         .progress-wrapper { margin-top: 20px; display: none; }
-        .progress-container { width: 100%; background-color: #e2e8f0; border-radius: 10px; overflow: hidden; height: 30px; position: relative; }
-        .progress-bar { width: 0%; height: 100%; background-color: #10b981; transition: width 0.2s linear; }
-        .progress-text { position: absolute; width: 100%; text-align: center; top: 0; left: 0; line-height: 30px; font-size: 0.95rem; font-weight: bold; color: #1e293b; }
-        
-        .status-msg { margin-top: 10px; font-weight: bold; text-align: center; min-height: 20px; font-size: 0.95rem; }
+        .progress-container { width: 100%; background: #e2e8f0; border-radius: 10px; height: 25px; position: relative; overflow: hidden; }
+        .progress-bar { width: 0%; height: 100%; background: #10b981; transition: 0.2s; }
+        .progress-text { position: absolute; width: 100%; text-align: center; line-height: 25px; font-weight: bold; font-size: 0.85rem; color: #1e293b; }
+        .status-msg { margin-top: 10px; text-align: center; font-weight: bold; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -47,31 +38,28 @@
         </ul>
     </div>
     <div class="main-content">
-        <div class="header"><h1>System Dashboard</h1></div>
+        <h1>Dashboard</h1>
         <div class="grid-container">
-            <div class="card" style="border-top: 4px solid #10b981;">
-                <h3 style="margin:0 0 15px 0;">Add Screen</h3>
-                <div class="form-group"><label>Pairing Code</label><input type="text" id="pair-code" maxlength="6"></div>
+            <div class="card" style="border-top-color: #10b981;">
+                <h3>Add Screen</h3>
+                <div class="form-group"><label>6-Digit Code</label><input type="text" id="pair-code"></div>
                 <div class="form-group"><label>Screen Name</label><input type="text" id="pair-name"></div>
-                <button class="success-btn" onclick="pairScreen()">Pair Screen</button>
+                <button onclick="pairScreen()">Pair Screen</button>
                 <div id="pair-status" class="status-msg"></div>
             </div>
-
-            <div class="card" style="border-top: 4px solid #3b82f6;">
-                <h3 style="margin:0 0 15px 0;">Upload Media</h3>
+            <div class="card">
+                <h3>Upload Media</h3>
                 <div class="form-group">
                     <label>Target Screen</label>
-                    <select id="screen-select"><option value="">Loading...</option></select>
+                    <select id="screen-select"><option>Loading...</option></select>
                 </div>
                 <div class="form-group">
-                    <label>Select File</label>
+                    <label>File</label>
                     <input type="file" id="media-file" accept="image/*,video/mp4">
-                    <div id="file-details-box" class="file-details">
-                        <b>File:</b> <span id="info-name"></span><br>
+                    <div id="file-details" class="file-details">
                         <b>Size:</b> <span id="info-size"></span> MB
                     </div>
                 </div>
-                <div class="form-group"><label>Image Duration (s)</label><input type="number" id="duration" value="10"></div>
                 <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Deploy</button>
                 <div class="progress-wrapper" id="progress-wrapper">
                     <div class="progress-container">
@@ -85,80 +73,78 @@
     </div>
 
     <script>
-        const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        
+        // sbClient instead of supabase to prevent clash
+        const sbClient = window.supabase.createClient(S_URL, S_KEY);
 
-        document.getElementById('media-file').addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                document.getElementById('info-name').textContent = file.name;
-                document.getElementById('info-size').textContent = (file.size / 1048576).toFixed(2);
-                document.getElementById('file-details-box').style.display = 'block';
+        document.getElementById('media-file').onchange = function() {
+            const f = this.files[0];
+            if(f) {
+                document.getElementById('info-size').textContent = (f.size / 1048576).toFixed(2);
+                document.getElementById('file-details').style.display = 'block';
             }
-        });
+        };
 
         async function loadScreens() {
-            const { data } = await supabaseClient.from('screens').select('id, name').eq('is_paired', true);
-            const select = document.getElementById('screen-select');
-            select.innerHTML = data?.length ? data.map(s => `<option value="${s.id}">${s.name}</option>`).join('') : '<option>No paired screens</option>';
+            const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            const sel = document.getElementById('screen-select');
+            if (error) { console.error(error); return; }
+            sel.innerHTML = data?.length ? data.map(s => `<option value="${s.id}">${s.name}</option>`).join('') : '<option>No paired screens</option>';
+        }
+
+        async function pairScreen() {
+            const c = document.getElementById('pair-code').value;
+            const n = document.getElementById('pair-name').value;
+            const { data } = await sbClient.from('screens').select('id').eq('pairing_code', c).eq('is_paired', false);
+            if(data?.length) {
+                await sbClient.from('screens').update({ name: n, is_paired: true, pairing_code: null }).eq('id', data[0].id);
+                document.getElementById('pair-status').textContent = "Paired!";
+                loadScreens();
+            }
         }
 
         async function uploadAndDeploy() {
-            const screenId = document.getElementById('screen-select').value;
-            const fileInput = document.getElementById('media-file');
-            const file = fileInput.files[0];
-            if (!screenId || !file) return;
+            const sid = document.getElementById('screen-select').value;
+            const file = document.getElementById('media-file').files[0];
+            if(!sid || !file) return;
 
             const btn = document.getElementById('deploy-btn');
             const bar = document.getElementById('progress-bar');
             const txt = document.getElementById('progress-percent');
-            const wrapper = document.getElementById('progress-wrapper');
+            const wrap = document.getElementById('progress-wrapper');
             const status = document.getElementById('deploy-status');
 
             btn.disabled = true;
-            wrapper.style.display = 'block';
-            status.textContent = "Starting...";
+            wrap.style.display = 'block';
 
-            const fileExt = file.name.split('.').pop().toLowerCase();
-            const fileName = `${Date.now()}.${fileExt}`;
-            const filePath = `uploads/${fileName}`;
+            const ext = file.name.split('.').pop().toLowerCase();
+            const path = `uploads/${Date.now()}.${ext}`;
 
             try {
-                // Perform upload with precise progress tracking
-                const { data, error } = await supabaseClient.storage.from('signage-media').upload(filePath, file, {
+                const { error } = await sbClient.storage.from('signage-media').upload(path, file, {
                     onUploadProgress: (p) => {
-                        const percent = Math.round((p.loaded / p.total) * 100);
-                        bar.style.width = percent + '%';
-                        txt.textContent = percent + '%';
-                        status.textContent = `Uploading: ${percent}% (${(p.loaded / 1048576).toFixed(1)} / ${(p.total / 1048576).toFixed(1)} MB)`;
+                        const pct = Math.round((p.loaded / p.total) * 100);
+                        bar.style.width = pct + '%';
+                        txt.textContent = pct + '%';
+                        status.textContent = `Uploading... ${(p.loaded / 1048576).toFixed(1)}MB`;
                     }
                 });
+                if(error) throw error;
 
-                if (error) throw error;
-
-                status.textContent = "Syncing...";
-                const { data: urlData } = supabaseClient.storage.from('signage-media').getPublicUrl(filePath);
+                const { data: urlObj } = sbClient.storage.from('signage-media').getPublicUrl(path);
+                const { data: mData } = await sbClient.from('media').insert([{ file_name: file.name, file_url: urlObj.publicUrl, media_type: (ext === 'mp4' ? 'video' : 'image') }]).select();
                 
-                const { data: mData } = await supabaseClient.from('media').insert([{ 
-                    file_name: file.name, file_url: urlData.publicUrl, media_type: (fileExt === 'mp4' ? 'video' : 'image') 
-                }]).select();
+                const { data: cPl } = await sbClient.from('playlist_items').select('display_order').eq('screen_id', sid).order('display_order', {ascending:false}).limit(1);
+                const ord = (cPl?.[0]?.display_order || 0) + 1;
 
-                const { data: cItems } = await supabaseClient.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
-                const nextOrder = (cItems?.[0]?.display_order || 0) + 1;
-
-                await supabaseClient.from('playlist_items').insert([{ 
-                    screen_id: screenId, media_id: mData[0].id, display_order: nextOrder, duration_seconds: document.getElementById('duration').value 
-                }]);
-
-                status.style.color = '#10b981';
-                status.textContent = "Done! Media is live.";
-            } catch (err) {
-                status.style.color = '#dc2626';
-                status.textContent = "Error. Check file size (max 50MB).";
+                await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, display_order: ord, duration_seconds: 10 }]);
+                status.textContent = "Success!";
+            } catch (e) {
+                status.textContent = "Error: " + e.message;
             } finally {
                 btn.disabled = false;
-                setTimeout(() => { wrapper.style.display = 'none'; fileInput.value = ''; }, 3000);
             }
         }
         loadScreens();
