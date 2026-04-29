@@ -3,107 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signage Player</title>
+    <title>Nehas Signage Player</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html {
-            margin: 0; padding: 0; width: 100vw; height: 100vh;
-            background-color: #000; overflow: hidden;
-            display: flex; justify-content: center; align-items: center;
-            font-family: sans-serif; color: #fff;
-        }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background-color: #0f172a; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; color: #fff; }
         #media-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
         #media-container img { width: 100%; height: 100%; object-fit: contain; }
+        
+        /* Graphic Designs */
+        .pairing-screen { text-align: center; background: #1e293b; padding: 60px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); border: 2px solid #334155;}
+        .pairing-code { font-size: 6rem; font-weight: bold; color: #3b82f6; letter-spacing: 10px; margin: 20px 0; background: #0f172a; padding: 20px 40px; border-radius: 12px;}
+        
+        .default-graphic { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .default-graphic h1 { font-size: 5rem; margin: 0; text-shadow: 2px 2px 10px rgba(0,0,0,0.5); letter-spacing: 2px; }
+        .default-graphic h2 { font-size: 3rem; margin-top: 15px; font-weight: 300; color: #93c5fd; }
+        .default-graphic p { margin-top: 50px; font-size: 1.5rem; opacity: 0.7; border-top: 1px solid #3b82f6; padding-top: 30px; }
     </style>
 </head>
 <body>
 
     <div id="media-container">
-        <h1>Loading playlist...</h1>
+        <h1>Initializing Display...</h1>
     </div>
 
     <script>
         const SUPABASE_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        
-        // BUG FIX: Renamed variable
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        const urlParams = new URLSearchParams(window.location.search);
-        let SCREEN_ID = urlParams.get('screen');
-
+        // Check local storage so the Pi remembers who it is after a reboot
+        let SCREEN_ID = localStorage.getItem('nehas_screen_id');
         let playlist = [];
         let currentIndex = 0;
         let loopTimer;
 
-        async function fetchPlaylist() {
-            if (!SCREEN_ID) return;
-            
-            const { data, error } = await supabaseClient
-                .from('playlist_items')
-                .select(`duration_seconds, display_order, media ( file_url, media_type )`)
-                .eq('screen_id', SCREEN_ID)
-                .order('display_order', { ascending: true });
-
-            if (error) {
-                console.error("Error fetching playlist:", error);
-                document.getElementById('media-container').innerHTML = `<h1>Error loading data: ${error.message}</h1>`;
-                return;
+        async function bootSequence() {
+            if (!SCREEN_ID) {
+                // 1. Never paired before. Generate a 6 digit code.
+                const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+                
+                // Save it to database
+                const { data, error } = await supabaseClient.from('screens')
+                    .insert([{ name: 'Unpaired Display', pairing_code: newCode, is_paired: false }]).select();
+                
+                if (data) {
+                    SCREEN_ID = data[0].id;
+                    localStorage.setItem('nehas_screen_id', SCREEN_ID); // Remember for next time
+                    renderPairingScreen(newCode);
+                    listenForPairing();
+                }
+            } else {
+                // 2. Previously connected. Check if it was fully paired.
+                const { data } = await supabaseClient.from('screens').select('is_paired, pairing_code').eq('id', SCREEN_ID).single();
+                
+                if (data && data.is_paired) {
+                    startSignage();
+                } else if (data) {
+                    // It generated a code but admin never finished pairing it
+                    renderPairingScreen(data.pairing_code);
+                    listenForPairing();
+                }
             }
+        }
 
-            playlist = data;
+        // --- RENDER FUNCTIONS ---
+
+        function renderPairingScreen(code) {
+            document.getElementById('media-container').innerHTML = `
+                <div class="pairing-screen">
+                    <h2>NEHAS SIGNAGE</h2>
+                    <p style="font-size: 1.2rem; color: #94a3b8;">Enter this code in your Admin Dashboard to pair this screen.</p>
+                    <div class="pairing-code">${code}</div>
+                </div>`;
+        }
+
+        function renderDefaultGraphic() {
+            document.getElementById('media-container').innerHTML = `
+                <div class="default-graphic">
+                    <h1>Nehas Digital Signage</h1>
+                    <h2>ነሃስ ማስታወቂያ</h2>
+                    <p>Ready for content.<br>Upload media from the dashboard.</p>
+                </div>`;
+        }
+
+        // --- CORE LOGIC ---
+
+        function listenForPairing() {
+            // Listen to see when the Admin updates this screen's "is_paired" status
+            supabaseClient.channel('auth_channel').on('postgres_changes', 
+                { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` },
+                (payload) => {
+                    if (payload.new.is_paired) {
+                        startSignage();
+                    }
+                }
+            ).subscribe();
+        }
+
+        function startSignage() {
+            fetchPlaylist();
+            subscribeToPlaylistChanges();
+        }
+
+        async function fetchPlaylist() {
+            const { data } = await supabaseClient.from('playlist_items')
+                .select(`duration_seconds, display_order, media ( file_url, media_type )`)
+                .eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
+            
+            playlist = data || [];
             currentIndex = 0;
             playNext();
         }
 
         function playNext() {
             clearTimeout(loopTimer); 
-
             const container = document.getElementById('media-container');
 
             if (playlist.length === 0) {
-                container.innerHTML = '<h1>No media assigned to this screen.</h1>';
+                renderDefaultGraphic();
                 return;
             }
 
             const currentItem = playlist[currentIndex];
-            const mediaData = currentItem.media;
-
-            if (mediaData.media_type === 'image') {
-                container.innerHTML = `<img src="${mediaData.file_url}" alt="Signage Media" />`;
-            } else {
-                container.innerHTML = `<h2>Unsupported media type</h2>`;
-            }
+            container.innerHTML = `<img src="${currentItem.media.file_url}" />`;
 
             currentIndex = (currentIndex + 1) % playlist.length;
-            const durationInMilliseconds = currentItem.duration_seconds * 1000;
-            loopTimer = setTimeout(playNext, durationInMilliseconds);
+            loopTimer = setTimeout(playNext, currentItem.duration_seconds * 1000);
         }
 
-        function subscribeToChanges() {
-            if (!SCREEN_ID) return;
-
-            supabaseClient
-                .channel('playlist_updates')
-                .on(
-                    'postgres_changes',
-                    { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` },
-                    () => { fetchPlaylist(); }
-                )
-                .subscribe();
+        function subscribeToPlaylistChanges() {
+            supabaseClient.channel('playlist_channel').on('postgres_changes',
+                { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` },
+                () => { fetchPlaylist(); }
+            ).subscribe();
         }
 
-        // Boot sequence
-        if (!SCREEN_ID || SCREEN_ID === 'YOUR_SCREEN_ID') {
-            document.getElementById('media-container').innerHTML = `
-                <div style="text-align: center;">
-                    <h1>Screen ID Missing</h1>
-                    <p>Open this page with an actual screen ID from your database in the URL.<br>Example: <b>player.html?screen=1234abcd-1234-abcd-1234-abcd1234abcd</b></p>
-                </div>`;
-        } else {
-            fetchPlaylist();
-            subscribeToChanges();
-        }
+        // Start the engine
+        bootSequence();
     </script>
 </body>
 </html>
