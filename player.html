@@ -3,57 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nehas Signage Player | ነሃስ ማስታወቂያ</title>
+    <title>Nehas Signage Player</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background-color: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; color: #fff; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: sans-serif; color: #fff; }
         #media-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-        #media-container img, #media-container video { width: 100%; height: 100%; object-fit: contain; }
-        .pairing-screen { text-align: center; background: #1e293b; padding: 60px; border-radius: 16px; border: 2px solid #334155; }
-        .pairing-code { font-size: 6rem; font-weight: bold; color: #3b82f6; letter-spacing: 10px; margin: 20px 0; background: #0f172a; padding: 20px 40px; border-radius: 12px; }
-        .default-graphic { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        .default-graphic h1 { font-size: 5rem; margin: 0; }
-        .default-graphic h2 { font-size: 3rem; margin-top: 15px; color: #93c5fd; }
+        img, video { width: 100%; height: 100%; object-fit: contain; }
+        .pairing-screen { text-align: center; background: #1e293b; padding: 50px; border-radius: 15px; border: 2px solid #334155; }
+        .pairing-code { font-size: 5rem; font-weight: bold; color: #3b82f6; letter-spacing: 8px; margin: 20px 0; background: #0f172a; padding: 15px; border-radius: 10px; }
+        .brand { background: linear-gradient(135deg, #0f172a, #1e3a8a); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     </style>
 </head>
 <body>
-    <div id="media-container"><h1>Initializing...</h1></div>
-
+    <div id="media-container"><h1>Loading...</h1></div>
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = window.supabase.createClient(S_URL, S_KEY);
-
         let SCREEN_ID = localStorage.getItem('nehas_screen_id');
-        let playlist = [];
-        let currentIndex = 0;
-        let loopTimer;
+        let playlist = []; let currentIndex = 0; let loopTimer;
 
         async function sendHeartbeat() {
-            if (SCREEN_ID) {
-                await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
-            }
+            if (SCREEN_ID) await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
         }
 
         async function boot() {
             if (!SCREEN_ID) {
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
                 const { data } = await sbClient.from('screens').insert([{ name: 'New Display', pairing_code: code, is_paired: false }]).select();
-                if (data) {
-                    SCREEN_ID = data[0].id;
-                    localStorage.setItem('nehas_screen_id', SCREEN_ID);
-                    renderPairing(code);
-                    listenPairing();
-                }
+                if (data) { SCREEN_ID = data[0].id; localStorage.setItem('nehas_screen_id', SCREEN_ID); renderPairing(code); listenPairing(); }
             } else {
                 const { data } = await sbClient.from('screens').select('is_paired, pairing_code').eq('id', SCREEN_ID).single();
                 if (data?.is_paired) start();
                 else if (data) { renderPairing(data.pairing_code); listenPairing(); }
             }
-            
-            // Start heartbeat every 60 seconds
-            sendHeartbeat();
-            setInterval(sendHeartbeat, 60000);
+            sendHeartbeat(); setInterval(sendHeartbeat, 60000);
         }
 
         function renderPairing(c) {
@@ -71,32 +55,26 @@
 
         async function fetchPlaylist() {
             const { data } = await sbClient.from('playlist_items').select(`duration_seconds, media ( file_url, media_type )`).eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
-            playlist = data || [];
-            currentIndex = 0;
-            play();
+            playlist = data || []; currentIndex = 0; play();
         }
 
         function play() {
             clearTimeout(loopTimer);
             const container = document.getElementById('media-container');
             if (playlist.length === 0) {
-                container.innerHTML = `<div class="default-graphic"><h1>Nehas Signage</h1><h2>ነሃስ ማስታወቂያ</h2></div>`;
+                container.innerHTML = `<div class="brand"><h1>Nehas Signage</h1><h2>ነሃስ ማስታወቂያ</h2></div>`;
                 return;
             }
             const item = playlist[currentIndex];
             currentIndex = (currentIndex + 1) % playlist.length;
-
             if (item.media.media_type === 'image') {
                 container.innerHTML = `<img src="${item.media.file_url}">`;
                 loopTimer = setTimeout(play, item.duration_seconds * 1000);
             } else {
                 container.innerHTML = `<video src="${item.media.file_url}" autoplay muted></video>`;
-                const v = container.querySelector('video');
-                v.onended = play;
-                v.onerror = play;
+                const v = container.querySelector('video'); v.onended = play; v.onerror = play;
             }
         }
-
         boot();
     </script>
 </body>
