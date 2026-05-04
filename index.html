@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Nehas Admin | Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { margin: 0; font-family: 'Inter', sans-serif; background: #f8fafc; display: flex; height: 100vh; }
         .sidebar { width: 260px; background: #0f172a; color: white; display: flex; flex-direction: column; }
@@ -11,9 +12,12 @@
         .nav-items a { text-decoration: none; color: #94a3b8; display: block; padding: 15px; border-radius: 10px; transition: 0.3s; margin-bottom: 10px; }
         .nav-items a:hover, .nav-items a.active { background: #3b82f6; color: white; font-weight: bold; }
         .main { flex: 1; padding: 50px; overflow-y: auto; }
-        h1 { color: #1e293b; margin-top: 0; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; }
         .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        input, select, button { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
+        button { background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { filter: brightness(1.1); transform: translateY(-2px); }
+        .status { margin-top: 15px; text-align: center; font-weight: bold; min-height: 20px; }
     </style>
 </head>
 <body>
@@ -27,21 +31,109 @@
     </div>
 
     <div class="main">
-        <h1>Welcome to Nehas Signage</h1>
-        <p style="color: #64748b; font-size: 1.1rem;">Select a tool from the sidebar to manage your displays.</p>
+        <h1 style="color: #1e293b; margin-top: 0;">Command Center</h1>
         
         <div class="grid">
             <div class="card" style="border-top: 5px solid #3b82f6;">
-                <h3>Screen Manager</h3>
-                <p style="color: #64748b;">Pair new TVs using 6-digit codes and monitor the status of active displays across your network.</p>
-                <a href="screens.html" style="color: #3b82f6; text-decoration: none; font-weight: bold;">Go to Screens &rarr;</a>
+                <h3 style="margin-top:0;">1. Link New Display</h3>
+                <input type="text" id="p-code" placeholder="6-Digit TV Code" maxlength="6" style="text-align:center; font-family:monospace; font-size:24px; letter-spacing:5px;">
+                <input type="text" id="p-name" placeholder="Display Name (e.g. Lobby)">
+                <button onclick="pairTV()">Pair Device</button>
+                <div id="status-pair" class="status"></div>
             </div>
+
             <div class="card" style="border-top: 5px solid #10b981;">
-                <h3>Media Library</h3>
-                <p style="color: #64748b;">Upload images and videos, and push them directly to specific screens in real-time.</p>
-                <a href="library.html" style="color: #10b981; text-decoration: none; font-weight: bold;">Go to Library &rarr;</a>
+                <h3 style="margin-top:0;">2. Save Media to Library</h3>
+                <input type="text" id="m-url" placeholder="Direct File URL (.jpg, .mp4)">
+                <select id="m-type">
+                    <option value="image">Image</option>
+                    <option value="video">Video</option>
+                </select>
+                <button onclick="saveMedia()" style="background:#10b981;">Save to Library</button>
+                <div id="status-media" class="status"></div>
+            </div>
+
+            <div class="card" style="border-top: 5px solid #ef4444;">
+                <h3 style="margin-top:0;">3. Quick Deploy: YouTube</h3>
+                <input type="text" id="yt-url" placeholder="YouTube URL (or embed link)">
+                <select id="yt-screen"><option value="">Loading screens...</option></select>
+                <button onclick="deployYouTube()" style="background:#ef4444;">Push to Screen</button>
+                <div id="status-yt" class="status"></div>
             </div>
         </div>
     </div>
+
+    <script>
+        const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const sbClient = supabase.createClient(S_URL, S_KEY);
+
+        async function loadScreens() {
+            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            const select = document.getElementById('yt-screen');
+            if(data && data.length > 0) {
+                select.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            } else {
+                select.innerHTML = `<option value="">No paired screens</option>`;
+            }
+        }
+
+        async function pairTV() {
+            const code = document.getElementById('p-code').value.trim();
+            const name = document.getElementById('p-name').value.trim();
+            const status = document.getElementById('status-pair');
+            if(!code || !name) return status.innerText = "Fill all fields.";
+            
+            status.style.color = "#3b82f6"; status.innerText = "Searching...";
+            const { data } = await sbClient.from('screens').select('*').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
+
+            if (data) {
+                await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
+                status.style.color = "#10b981"; status.innerText = "Success! TV Linked.";
+                loadScreens(); // Update dropdown
+            } else {
+                status.style.color = "#ef4444"; status.innerText = "Invalid Code.";
+            }
+        }
+
+        async function saveMedia() {
+            const url = document.getElementById('m-url').value.trim();
+            const type = document.getElementById('m-type').value;
+            const status = document.getElementById('status-media');
+            if(!url) return status.innerText = "Provide a URL.";
+
+            const { error } = await sbClient.from('media').insert([{ file_url: url, media_type: type }]);
+            if(!error) {
+                status.style.color = "#10b981"; status.innerText = "Saved to Library!";
+                document.getElementById('m-url').value = '';
+            }
+        }
+
+        async function deployYouTube() {
+            let url = document.getElementById('yt-url').value.trim();
+            const screenId = document.getElementById('yt-screen').value;
+            const status = document.getElementById('status-yt');
+            if(!url || !screenId) return status.innerText = "Provide URL and select screen.";
+
+            // Convert standard YT link to embed link for iframe
+            if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0";
+            if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0";
+
+            status.style.color = "#3b82f6"; status.innerText = "Deploying...";
+
+            // Save to media table as URL type
+            const { data: media } = await sbClient.from('media').insert([{ file_url: url, media_type: 'url' }]).select();
+            
+            if(media && media[0]) {
+                // Clear old playlist for this screen and assign new
+                await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
+                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: media[0].id }]);
+                status.style.color = "#10b981"; status.innerText = "YouTube Deployed!";
+                document.getElementById('yt-url').value = '';
+            }
+        }
+
+        window.onload = loadScreens;
+    </script>
 </body>
 </html>
