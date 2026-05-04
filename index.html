@@ -7,39 +7,40 @@
     <style>
         :root { --primary: #3b82f6; --dark: #0f172a; --bg: #f8fafc; }
         body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 250px; background: var(--dark); color: white; display: flex; flex-direction: column; flex-shrink: 0; }
+        .sidebar { width: 250px; background: var(--dark); color: white; padding: 20px; flex-shrink: 0; }
         .sidebar h2 { text-align: center; padding: 25px 0; border-bottom: 1px solid #1e293b; margin: 0; }
         .nav-items { list-style: none; padding: 10px; margin: 0; }
-        .nav-items li { padding: 15px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-bottom: 5px; color: #94a3b8; }
+        .nav-items li { padding: 15px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-bottom: 5px; color: #94a3b8; transition: 0.2s; }
         .nav-items li:hover, .nav-items li.active { background: var(--primary); color: white; font-weight: bold; }
         .main { flex: 1; padding: 40px; overflow-y: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); border-top: 5px solid var(--primary); }
-        input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #e2e8f0; box-sizing: border-box; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; }
+        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); border-top: 6px solid var(--primary); }
+        input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 10px; border: 1px solid #e2e8f0; box-sizing: border-box; }
         button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
-        .status { margin-top: 10px; text-align: center; font-size: 13px; font-weight: bold; }
+        .status { margin-top: 15px; text-align: center; font-size: 13px; font-weight: bold; min-height: 1.2em; }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <h2>NEHAS ADMIN</h2>
         <ul class="nav-items">
-            <li class="active">Dashboard</li>
+            <li class="active">Control Center</li>
         </ul>
     </div>
     <div class="main">
-        <h1>Control Center</h1>
+        <h1>Dashboard</h1>
         <div class="grid">
-            <div class="card">
+            <div class="card" style="border-top-color: #10b981;">
                 <h3>Link New Display</h3>
                 <input type="text" id="p-code" placeholder="Enter 6-digit code">
-                <input type="text" id="p-name" placeholder="Display Name">
-                <button onclick="pairTV()">Link Screen</button>
+                <input type="text" id="p-name" placeholder="Display Name (e.g. Lobby)">
+                <button onclick="pairTV()" style="background:#10b981">Pair Device</button>
                 <div id="p-status" class="status"></div>
             </div>
-            <div class="card">
-                <h3>Screen Selection</h3>
-                <select id="sel-screen"></select>
+            <div class="card" style="border-top-color: #8b5cf6;">
+                <h3>Active Displays</h3>
+                <select id="sel-screen" style="margin-bottom: 10px;"></select>
+                <button onclick="loadScreens()" style="background:#8b5cf6">Refresh List</button>
             </div>
         </div>
     </div>
@@ -59,10 +60,13 @@
             const name = document.getElementById('p-name').value.trim();
             const status = document.getElementById('p-status');
             
+            status.style.color = "blue";
+            status.textContent = "Syncing with TV...";
+
             const { data } = await sbClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
             if (data) {
                 await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
-                status.style.color = "green"; status.textContent = "Linked!";
+                status.style.color = "green"; status.textContent = "Success! Display Linked.";
                 loadScreens();
             } else {
                 status.style.color = "red"; status.textContent = "Invalid Code.";
