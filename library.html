@@ -2,181 +2,90 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media Library | ነሃስ ማስታወቂያ</title>
+    <title>Nehas Admin | Library</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
-        .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
-        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; margin: 0; }
-        .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-weight: normal; }
-        .nav-items { list-style: none; padding: 0; margin: 0; }
-        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
-        .nav-items li:hover { background-color: #334155; }
-        .nav-items li.active { background-color: #3b82f6; }
-        
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
-        .media-card { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
-        
-        /* PREVIEW CLICKABLE AREAS */
-        .media-preview { width: 100%; height: 160px; object-fit: cover; background: #000; cursor: pointer; }
-        .video-label { background: #1e293b; color: #3b82f6; height: 160px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; flex-direction: column; text-align: center; cursor: pointer; border-bottom: 2px solid #3b82f6; }
-        .video-label:hover { background: #2d3748; }
-
-        .card-body { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; }
-        .file-name { font-size: 13px; font-weight: bold; margin-bottom: 12px; color: #1e293b; line-height: 1.4; min-height: 3em; }
-        
-        select, button, input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; margin-bottom: 10px; font-size: 13px; box-sizing: border-box; }
-        button { background: #3b82f6; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        button:hover { background: #2563eb; }
-        .del-btn { background: white !important; color: #ef4444 !important; border: 1px solid #fee2e2 !important; margin-top: auto; }
-        .del-btn:hover { background: #fee2e2 !important; }
-        
-        /* THE POPUP PLAYER */
-        .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
-        .modal-container { position: relative; width: 80%; max-width: 900px; display: flex; justify-content: center; }
-        .modal-content { width: 100%; border-radius: 8px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
-        .close-modal { position: absolute; top: -50px; right: 0; color: white; font-size: 40px; cursor: pointer; font-weight: bold; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #f8fafc; display: flex; height: 100vh; }
+        .sidebar { width: 260px; background: #0f172a; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { text-align: center; padding: 30px 0; border-bottom: 1px solid #1e293b; margin: 0; letter-spacing: 2px; color: #3b82f6; }
+        .nav-items { list-style: none; padding: 20px; margin: 0; }
+        .nav-items a { text-decoration: none; color: #94a3b8; display: block; padding: 15px; border-radius: 10px; transition: 0.3s; margin-bottom: 10px; }
+        .nav-items a:hover, .nav-items a.active { background: #3b82f6; color: white; font-weight: bold; }
+        .main { flex: 1; padding: 50px; overflow-y: auto; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 500px; }
+        input, select, button { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
+        button { background: #10b981; color: white; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
+        <h2>NEHAS ADMIN</h2>
         <ul class="nav-items">
-            <li onclick="location.href='index.html'">Dashboard</li>
-            <li onclick="location.href='screens.html'">Screens Manager</li>
-            <li class="active" onclick="location.href='library.html'">Media Library</li>
+            <li><a href="index.html">Dashboard Hub</a></li>
+            <li><a href="screens.html">Screen Manager</a></li>
+            <li><a href="library.html" class="active">Media Library</a></li>
         </ul>
     </div>
 
-    <div class="main-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-            <h1>Media Library</h1>
-            <button onclick="loadLibrary()" style="width: auto; padding: 10px 25px;">🔄 Refresh Library</button>
-        </div>
-        <div id="library-container" class="library-grid"></div>
-    </div>
-
-    <div id="previewModal" class="modal" onclick="closePreview()">
-        <div class="modal-container" onclick="event.stopPropagation()">
-            <span class="close-modal" onclick="closePreview()">&times;</span>
-            <div id="modal-body" style="width: 100%;"></div>
+    <div class="main">
+        <h1 style="color: #1e293b; margin-top: 0;">Media Library</h1>
+        <div class="card">
+            <h3>Push Content to TV</h3>
+            <input type="text" id="m-url" placeholder="File URL (Image or Video)">
+            <select id="m-type">
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+            </select>
+            <select id="target-screen">
+                <option value="">Loading screens...</option>
+            </select>
+            <button onclick="pushMedia()">Deploy to Screen</button>
+            <div id="status" style="margin-top: 15px; text-align: center; font-weight: bold;"></div>
         </div>
     </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        
-        let sbClient;
-        let pairedScreens = [];
+        const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        window.onload = async function() {
-            if (!window.supabase) return;
-            sbClient = window.supabase.createClient(S_URL, S_KEY);
-            
-            // Get paired screens for dropdowns
+        async function loadScreens() {
             const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
-            pairedScreens = data || [];
-            
-            loadLibrary();
-        };
-
-        async function loadLibrary() {
-            const cont = document.getElementById('library-container');
-            cont.innerHTML = "<p style='padding: 20px;'>Syncing assets...</p>";
-
-            try {
-                // Fetch media (ordering by ID or created_at if it exists)
-                const { data: media, error } = await sbClient.from('media').select('*');
-
-                if (error) {
-                    cont.innerHTML = `<div style="color:red; padding: 20px;">Database Error: ${error.message}</div>`;
-                    return;
-                }
-
-                if (!media || media.length === 0) {
-                    cont.innerHTML = "<p style='padding: 20px;'>Library is empty. Go to the Dashboard to upload media.</p>";
-                    return;
-                }
-
-                cont.innerHTML = media.map(item => {
-                    const options = pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-                    
-                    // Logic to show a preview or a video icon
-                    const previewHtml = item.media_type === 'video' 
-                        ? `<div class="video-label" onclick="openPreview('${item.file_url}', 'video')">
-                             <span style="font-size: 40px; margin-bottom: 10px;">🎬</span>
-                             <span>CLICK TO PLAY VIDEO</span>
-                           </div>` 
-                        : `<img src="${item.file_url}" class="media-preview" onclick="openPreview('${item.file_url}', 'image')" onerror="this.src='https://via.placeholder.com/260x160?text=No+Preview'">`;
-
-                    return `
-                        <div class="media-card">
-                            ${previewHtml}
-                            <div class="card-body">
-                                <div class="file-name">${item.file_name || 'Untitled Content'}</div>
-                                <label style="font-size: 11px; color: #64748b; font-weight: bold; display: block; margin-bottom: 5px;">DEPLOY TO:</label>
-                                <select id="sel-${item.id}">${options || '<option value="">No screens ready</option>'}</select>
-                                <input type="number" id="dur-${item.id}" value="10" title="Duration in seconds">
-                                <button onclick="deploy('${item.id}')">Add to Playlist</button>
-                                <button class="del-btn" onclick="del('${item.id}')">Delete Permanently</button>
-                            </div>
-                        </div>`;
-                }).join('');
-            } catch (e) {
-                cont.innerHTML = `<div style="color:red; padding: 20px;">System Error: ${e.message}</div>`;
-            }
-        }
-
-        // --- PLAYBACK POPUP LOGIC ---
-        function openPreview(url, type) {
-            const modal = document.getElementById('previewModal');
-            const body = document.getElementById('modal-body');
-            
-            if (type === 'video') {
-                body.innerHTML = `<video src="${url}" controls autoplay class="modal-content" style="background: black;"></video>`;
+            const select = document.getElementById('target-screen');
+            if(data && data.length > 0) {
+                select.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
             } else {
-                body.innerHTML = `<img src="${url}" class="modal-content" style="object-fit: contain; background: black;">`;
+                select.innerHTML = `<option value="">No paired screens available</option>`;
             }
+        }
+
+        async function pushMedia() {
+            const url = document.getElementById('m-url').value.trim();
+            const type = document.getElementById('m-type').value;
+            const screenId = document.getElementById('target-screen').value;
+            const status = document.getElementById('status');
+
+            if(!url || !screenId) return status.innerText = "Fill all fields and select a screen.";
             
-            modal.style.display = "flex";
+            status.style.color = "#3b82f6";
+            status.innerText = "Deploying...";
+
+            // 1. Clear old playlist for this screen (Optional, ensures only 1 item plays for now)
+            await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
+
+            // 2. Add media to library
+            const { data: mediaData } = await sbClient.from('media').insert([{ file_url: url, media_type: type }]).select();
+
+            if (mediaData && mediaData[0]) {
+                // 3. Link media to screen
+                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: mediaData[0].id }]);
+                status.style.color = "#10b981";
+                status.innerText = "Deployed! The TV will reload automatically.";
+                document.getElementById('m-url').value = '';
+            }
         }
 
-        function closePreview() {
-            const modal = document.getElementById('previewModal');
-            document.getElementById('modal-body').innerHTML = ""; // This stops the video sound
-            modal.style.display = "none";
-        }
-
-        // Keyboard support
-        document.addEventListener('keydown', (e) => { if (e.key === "Escape") closePreview(); });
-
-        // --- DEPLOY LOGIC ---
-        async function deploy(mId) {
-            const sId = document.getElementById(`sel-${mId}`).value;
-            const dur = document.getElementById(`dur-${mId}`).value;
-            if (!sId) return alert("Please select a screen first.");
-
-            const { data } = await sbClient.from('playlist_items').select('display_order').eq('screen_id', sId).order('display_order', {ascending: false}).limit(1);
-            const ord = (data?.[0]?.display_order || 0) + 1;
-
-            const { error } = await sbClient.from('playlist_items').insert([{ screen_id: sId, media_id: mId, display_order: ord, duration_seconds: dur }]);
-            if (error) alert("Deployment error: " + error.message);
-            else alert("Content added to the TV loop!");
-        }
-
-        async function del(id) {
-            if (!confirm("This will delete this file from the library AND all screen playlists. Continue?")) return;
-            // CASCADE DELETE: Supabase will handle playlist_items if foreign key is set to CASCADE, 
-            // but we'll do it manually just to be safe.
-            await sbClient.from('playlist_items').delete().eq('media_id', id);
-            const { error } = await sbClient.from('media').delete().eq('id', id);
-            
-            if (error) alert("Delete error: " + error.message);
-            else loadLibrary();
-        }
+        window.onload = loadScreens;
     </script>
 </body>
 </html>
