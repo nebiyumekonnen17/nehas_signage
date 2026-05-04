@@ -1,46 +1,168 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Nehas Player</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nehas Signage Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>body { background: black; margin: 0; overflow: hidden; color: white; font-family: sans-serif; }</style>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background-color: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; 
+        }
+
+        /* Branding Background Layer */
+        #bg-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://output.googleusercontent.com/image_generation_content/0/generated_image.webp') no-repeat center center;
+            background-size: cover;
+            z-index: 1;
+            transition: opacity 1s ease-in-out;
+        }
+
+        /* Content Layer (Images/Video/Apps) */
+        #media-container {
+            position: relative; width: 100%; height: 100%; z-index: 2;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; position: absolute; }
+
+        /* Pairing Overlay Styling */
+        .overlay-card {
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 40px 60px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+            color: white;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .pairing-label { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: #3b82f6; font-weight: bold; margin-bottom: 10px; }
+        .pairing-code { font-size: 5rem; font-weight: 800; margin: 10px 0; font-family: monospace; }
+        .pairing-sub { font-size: 1rem; color: #94a3b8; }
+
+        #diag-bar {
+            position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: rgba(255,255,255,0.4); z-index: 100; font-family: monospace;
+        }
+    </style>
 </head>
 <body>
-    <div id="display" style="width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"></div>
+
+    <div id="bg-layer"></div>
+    <div id="media-container"></div>
+    <div id="diag-bar">STATUS: <span id="log-status">INIT</span> | ID: <span id="log-id">...</span></div>
+
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
+
         let SCREEN_ID = localStorage.getItem('nehas_sid');
+        let playlist = [];
+        let currentIndex = 0;
+        let loopTimer;
 
         async function boot() {
             if (!SCREEN_ID) {
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
-                // FIX: Send a placeholder name to avoid "null" errors
-                const { data } = await sbClient.from('screens').insert([{ name: 'New TV', pairing_code: code, is_paired: false }]).select();
+                // Create screen record with placeholder name to prevent constraint errors
+                const { data, error } = await sbClient.from('screens').insert([
+                    { name: 'Awaiting Name...', pairing_code: code, is_paired: false }
+                ]).select();
+
                 if (data) {
                     SCREEN_ID = data[0].id;
                     localStorage.setItem('nehas_sid', SCREEN_ID);
-                    document.getElementById('display').innerHTML = `<h1>Code: ${code}</h1>`;
-                    // Wait for pairing...
-                    sbClient.channel('p').on('postgres_changes',{event:'UPDATE',schema:'public',table:'screens',filter:`id=eq.${SCREEN_ID}`},()=>location.reload()).subscribe();
+                    showPairingScreen(code);
+                    
+                    // Listen for the update that marks it as paired
+                    sbClient.channel('pairing-watch')
+                        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, (payload) => {
+                            if (payload.new.is_paired) location.reload();
+                        }).subscribe();
                 }
             } else {
-                startLoop();
+                document.getElementById('log-id').innerText = SCREEN_ID.substring(0, 8);
+                startPlayer();
             }
         }
 
-        async function startLoop() {
-            const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
-            if (data?.length) {
-                const item = data[0].media;
-                if (item.media_type === 'url') {
-                    document.getElementById('display').innerHTML = `<iframe src="${item.file_url}" style="width:100%; height:100%; border:none;"></iframe>`;
-                } else {
-                    document.getElementById('display').innerHTML = `<img src="${item.file_url}" style="width:100%;">`;
-                }
+        function showPairingScreen(code) {
+            document.getElementById('media-container').innerHTML = `
+                <div class="overlay-card">
+                    <div class="pairing-label">Pair Your Device</div>
+                    <div class="pairing-code">${code}</div>
+                    <div class="pairing-sub">Enter this code in your Nehas Admin Dashboard</div>
+                </div>
+            `;
+        }
+
+        async function startPlayer() {
+            await syncPlaylist();
+            
+            // Listen for any database changes to update playlist immediately
+            sbClient.channel('content-sync')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items' }, syncPlaylist)
+                .subscribe();
+
+            playNext();
+        }
+
+        async function syncPlaylist() {
+            const { data } = await sbClient.from('playlist_items')
+                .select('duration_seconds, media!inner(*)')
+                .eq('screen_id', SCREEN_ID);
+            
+            playlist = data || [];
+            document.getElementById('log-status').innerText = playlist.length > 0 ? "PLAYING" : "IDLE";
+        }
+
+        async function playNext() {
+            clearTimeout(loopTimer);
+            const container = document.getElementById('media-container');
+            const bgLayer = document.getElementById('bg-layer');
+
+            // Update heartbeat
+            await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
+
+            if (playlist.length === 0) {
+                // Show branding graphic when no data is queued
+                container.innerHTML = `
+                    <div class="overlay-card">
+                        <div class="pairing-label">Ready to Cast</div>
+                        <div style="font-size: 1.5rem; margin-top:10px;">Waiting for content...</div>
+                    </div>
+                `;
+                bgLayer.style.opacity = "1";
+                setTimeout(playNext, 5000);
+                return;
+            }
+
+            const item = playlist[currentIndex];
+            currentIndex = (currentIndex + 1) % playlist.length;
+
+            // Hide background graphic when media is playing
+            bgLayer.style.opacity = "0";
+            container.innerHTML = ""; 
+
+            if (item.media.media_type === 'image' || item.media.media_type === 'image/*') {
+                container.innerHTML = `<img src="${item.media.file_url}">`;
+                loopTimer = setTimeout(playNext, item.duration_seconds * 1000);
+            } else if (item.media.media_type === 'video') {
+                container.innerHTML = `<video src="${item.media.file_url}" autoplay muted></video>`;
+                container.querySelector('video').onended = playNext;
+            } else {
+                // Renders Apps or YouTube
+                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay"></iframe>`;
+                loopTimer = setTimeout(playNext, item.duration_seconds * 1000);
             }
         }
+
         boot();
     </script>
 </body>
