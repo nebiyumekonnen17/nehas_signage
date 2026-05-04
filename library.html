@@ -11,22 +11,24 @@
         .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; margin: 0; }
         .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-weight: normal; }
         .nav-items { list-style: none; padding: 0; margin: 0; }
-        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; }
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
+        .nav-items li:hover { background-color: #334155; }
         .nav-items li.active { background-color: #3b82f6; }
         
         .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
-        .media-card { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        .media-preview { width: 100%; height: 140px; object-fit: cover; background: #000; display: block; }
-        .video-label { background: #1e293b; color: #3b82f6; height: 140px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .media-card { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+        .media-preview { width: 100%; height: 140px; object-fit: cover; background: #000; }
+        .video-label { background: #1e293b; color: #3b82f6; height: 140px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; flex-direction: column; }
         
-        .card-body { padding: 15px; }
-        .file-name { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 10px; }
+        .card-body { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; }
+        .file-name { font-size: 13px; font-weight: bold; margin-bottom: 10px; color: #1e293b; word-break: break-all; }
         
-        select, button { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #cbd5e1; margin-bottom: 5px; font-size: 12px; }
-        button { background: #3b82f6; color: white; border: none; cursor: pointer; font-weight: bold; }
-        button.del-btn { background: #fee2e2; color: #ef4444; margin-top: 10px; }
-        button:hover { opacity: 0.9; }
+        select, button, input { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #cbd5e1; margin-bottom: 8px; font-size: 12px; box-sizing: border-box; }
+        button { background: #3b82f6; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #2563eb; }
+        button.del-btn { background: white; color: #ef4444; border: 1px solid #fee2e2; margin-top: auto; }
+        button.del-btn:hover { background: #fee2e2; }
     </style>
 </head>
 <body>
@@ -41,9 +43,9 @@
     </div>
 
     <div class="main-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
             <h1>Media Library</h1>
-            <button onclick="loadLibrary()" style="width: auto; padding: 10px 20px;">Refresh Library</button>
+            <button onclick="loadLibrary()" style="width: auto; padding: 10px 20px;">🔄 Refresh Library</button>
         </div>
         
         <div id="library-container" class="library-grid">
@@ -58,45 +60,53 @@
         let pairedScreens = [];
 
         async function init() {
-            // 1. Get screens so we can populate the dropdowns
-            const { data: screens } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            // Load screens first for the dropdowns
+            const { data: screens } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
             pairedScreens = screens || [];
-            
-            // 2. Load the media
             loadLibrary();
         }
 
         async function loadLibrary() {
             const container = document.getElementById('library-container');
-            container.innerHTML = "Loading assets...";
+            container.innerHTML = "<p>Scanning library...</p>";
 
             const { data: media, error } = await sbClient.from('media').select('*').order('created_at', { ascending: false });
 
-            if (error || !media.length) {
-                container.innerHTML = "No media found in library.";
+            if (error) {
+                container.innerHTML = "<p>Error loading media. Check console.</p>";
+                console.error(error);
+                return;
+            }
+
+            if (!media || media.length === 0) {
+                container.innerHTML = "<p>No media found. Upload something from the Dashboard first!</p>";
                 return;
             }
 
             container.innerHTML = media.map(item => {
-                const screenOptions = pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+                const screenOptions = pairedScreens.length 
+                    ? pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('')
+                    : '<option value="">No paired screens</option>';
                 
+                // If it's an image, we show it. If it's a video, we show a placeholder icon.
+                const previewHtml = item.media_type === 'video' 
+                    ? `<div class="video-label">🎬<br>VIDEO</div>` 
+                    : `<img src="${item.file_url}" class="media-preview">`;
+
                 return `
                     <div class="media-card">
-                        ${item.media_type === 'video' 
-                            ? `<div class="video-label">🎬 VIDEO CONTENT</div>` 
-                            : `<img src="${item.media.file_url}" class="media-preview">`}
-                        
+                        ${previewHtml}
                         <div class="card-body">
                             <div class="file-name">${item.file_name}</div>
                             
-                            <label style="font-size: 10px; color: #64748b;">Deploy to:</label>
-                            <select id="sel-${item.id}">
-                                ${screenOptions || '<option>No screens paired</option>'}
-                            </select>
-                            <input type="number" id="dur-${item.id}" value="10" placeholder="Secs" style="width: 100%; box-sizing: border-box; margin-bottom: 5px; padding: 5px;">
-                            <button onclick="deployExisting('${item.id}')">Add to Playlist</button>
+                            <label style="font-size: 10px; color: #64748b; font-weight: bold;">Deploy to Screen:</label>
+                            <select id="sel-${item.id}">${screenOptions}</select>
                             
-                            <button class="del-btn" onclick="deleteFromLibrary('${item.id}')">Delete Permanently</button>
+                            <label style="font-size: 10px; color: #64748b; font-weight: bold;">Duration (sec):</label>
+                            <input type="number" id="dur-${item.id}" value="10">
+                            
+                            <button onclick="deployExisting('${item.id}')">Add to Playlist</button>
+                            <button class="del-btn" onclick="deleteFromLibrary('${item.id}')">Delete From Library</button>
                         </div>
                     </div>
                 `;
@@ -107,16 +117,19 @@
             const screenId = document.getElementById(`sel-${mediaId}`).value;
             const duration = document.getElementById(`dur-${mediaId}`).value;
 
-            if (!screenId) { alert("Select a screen first."); return; }
+            if (!screenId) {
+                alert("Please select a screen to deploy to.");
+                return;
+            }
 
-            // Get the current max order for that screen
-            const { data: currentPl } = await sbClient.from('playlist_items')
+            // Find current last order
+            const { data } = await sbClient.from('playlist_items')
                 .select('display_order')
                 .eq('screen_id', screenId)
                 .order('display_order', { ascending: false })
                 .limit(1);
 
-            const nextOrder = (currentPl?.[0]?.display_order || 0) + 1;
+            const nextOrder = (data?.[0]?.display_order || 0) + 1;
 
             const { error } = await sbClient.from('playlist_items').insert([{
                 screen_id: screenId,
@@ -125,22 +138,28 @@
                 duration_seconds: duration
             }]);
 
-            if (error) alert("Error deploying: " + error.message);
-            else alert("Added to screen playlist!");
+            if (error) alert("Error: " + error.message);
+            else alert("Successfully added to screen!");
         }
 
         async function deleteFromLibrary(id) {
-            if (!confirm("This will delete the file link and remove it from ALL screens. Continue?")) return;
+            if (!confirm("Warning: This will remove this file from the library and ALL screen playlists. Proceed?")) return;
 
-            // 1. Remove from all playlists first
-            await sbClient.from('playlist_items').delete().eq('media_id', id);
-            // 2. Remove from media table
-            await sbClient.from('media').delete().eq('id', id);
-            
-            loadLibrary();
+            try {
+                // Delete playlist entries first (foreign key safety)
+                await sbClient.from('playlist_items').delete().eq('media_id', id);
+                // Delete media entry
+                const { error } = await sbClient.from('media').delete().eq('id', id);
+                
+                if (error) throw error;
+                loadLibrary();
+            } catch (e) {
+                alert("Delete failed: " + e.message);
+            }
         }
 
-        init();
+        // Run on load
+        window.onload = init;
     </script>
 </body>
 </html>
