@@ -8,14 +8,12 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; }
         #media-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
+        img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; }
         .pair-code { color: white; font-size: 80px; font-family: monospace; text-align: center; }
-        .brand { position: absolute; bottom: 20px; right: 20px; color: rgba(255,255,255,0.3); font-family: sans-serif; }
     </style>
 </head>
 <body>
     <div id="media-container"></div>
-    <div class="brand">ነሃስ ማስታወቂያ</div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
@@ -28,9 +26,8 @@
         let loopTimer;
 
         async function boot() {
-            if (!SCREEN_ID) {
-                showPairing();
-            } else {
+            if (!SCREEN_ID) showPairing();
+            else {
                 const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).single();
                 if (!data || !data.is_paired) showPairing();
                 else start();
@@ -42,25 +39,16 @@
             const { data } = await sbClient.from('screens').insert([{ pairing_code: code, is_paired: false }]).select();
             SCREEN_ID = data[0].id;
             localStorage.setItem('nehas_sid', SCREEN_ID);
+            document.getElementById('media-container').innerHTML = `<div class="pair-code"><p style="font-size:24px;">Pairing Code:</p>${code}</div>`;
             
-            document.getElementById('media-container').innerHTML = `
-                <div class="pair-code">
-                    <p style="font-size:24px;">Enter this code on Dashboard:</p>
-                    ${code}
-                </div>`;
-            
-            // Wait for pairing
             sbClient.channel('pairing').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, payload => {
                 if (payload.new.is_paired) location.reload();
             }).subscribe();
         }
 
         async function start() {
-            // 1. Sync Playlist
             syncPlaylist();
-            // 2. Real-time updates
             sbClient.channel('pl').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` }, syncPlaylist).subscribe();
-            // 3. Play
             play();
         }
 
@@ -73,12 +61,12 @@
             clearTimeout(loopTimer);
             const container = document.getElementById('media-container');
             
-            // HEARTBEAT: TV tells DB it's alive and working!
+            // Heartbeat
             await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
 
             if (playlist.length === 0) {
-                container.innerHTML = `<div style="color:white; font-size:30px;">ነሃስ ማስታወቂያ<br>Waiting for media...</div>`;
-                setTimeout(play, 5000); // Check again in 5s
+                container.innerHTML = `<div style="color:white; font-size:30px;">ነሃስ ማስታወቂያ<br>Ready to play.</div>`;
+                setTimeout(play, 5000);
                 return;
             }
 
@@ -88,11 +76,13 @@
             if (item.media.media_type === 'image') {
                 container.innerHTML = `<img src="${item.media.file_url}">`;
                 loopTimer = setTimeout(play, item.duration_seconds * 1000);
-            } else {
+            } else if (item.media.media_type === 'video') {
                 container.innerHTML = `<video src="${item.media.file_url}" autoplay muted></video>`;
-                const v = container.querySelector('video');
-                v.onended = play;
-                v.onerror = play;
+                container.querySelector('video').onended = play;
+            } else {
+                // RENDER APPS / URLS
+                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay"></iframe>`;
+                loopTimer = setTimeout(play, item.duration_seconds * 1000);
             }
         }
 
