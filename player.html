@@ -1,96 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Nehas Player | TV Unit</title>
+    <title>Nehas Player</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; font-family: sans-serif; }
-        #media-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
-        img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; position: absolute; }
-        #diag-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #00ff00; font-size: 12px; padding: 6px 15px; z-index: 100; display: flex; gap: 20px; font-family: monospace; }
-    </style>
+    <style>body { background: black; margin: 0; overflow: hidden; color: white; font-family: sans-serif; }</style>
 </head>
 <body>
-    <div id="media-container"></div>
-    <div id="diag-bar">
-        <span>STATUS: <span id="log-status">BOOTING</span></span>
-        <span>ID: <span id="log-id">...</span></span>
-        <span>ITEMS: <span id="log-count">0</span></span>
-    </div>
-
+    <div id="display" style="width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;"></div>
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
-
         let SCREEN_ID = localStorage.getItem('nehas_sid');
-        let playlist = [];
-        let currentIndex = 0;
-        let loopTimer;
 
         async function boot() {
             if (!SCREEN_ID) {
-                // Pairing logic omitted for brevity - use existing pairing code
-                return;
-            }
-            document.getElementById('log-id').innerText = SCREEN_ID.substring(0,8);
-            startSystem();
-        }
-
-        async function startSystem() {
-            await sync();
-            // This is the CRITICAL fix: Listen for ALL changes to update playlist
-            sbClient.channel('db-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items' }, async () => {
-                document.getElementById('log-status').innerText = "SYNCING NEW CONTENT...";
-                await sync();
-            }).subscribe();
-
-            // Periodic backup sync (every 30 seconds)
-            setInterval(sync, 30000);
-            
-            play();
-        }
-
-        async function sync() {
-            const { data, error } = await sbClient.from('playlist_items')
-                .select('duration_seconds, media!inner(*)')
-                .eq('screen_id', SCREEN_ID);
-            
-            if (!error) {
-                playlist = data || [];
-                document.getElementById('log-count').innerText = playlist.length;
-                document.getElementById('log-status').innerText = playlist.length > 0 ? "PLAYING" : "EMPTY";
-            }
-        }
-
-        async function play() {
-            clearTimeout(loopTimer);
-            const container = document.getElementById('media-container');
-            
-            if (playlist.length === 0) {
-                container.innerHTML = `<h2 style="color:white;">Loop Empty</h2>`;
-                loopTimer = setTimeout(play, 5000);
-                return;
-            }
-
-            if (currentIndex >= playlist.length) currentIndex = 0;
-            const item = playlist[currentIndex];
-            currentIndex = (currentIndex + 1) % playlist.length;
-
-            if (item.media.media_type === 'image') {
-                container.innerHTML = `<img src="${item.media.file_url}">`;
-                loopTimer = setTimeout(play, item.duration_seconds * 1000);
-            } else if (item.media.media_type === 'video') {
-                container.innerHTML = `<video src="${item.media.file_url}" autoplay muted></video>`;
-                container.querySelector('video').onended = play;
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                // FIX: Send a placeholder name to avoid "null" errors
+                const { data } = await sbClient.from('screens').insert([{ name: 'New TV', pairing_code: code, is_paired: false }]).select();
+                if (data) {
+                    SCREEN_ID = data[0].id;
+                    localStorage.setItem('nehas_sid', SCREEN_ID);
+                    document.getElementById('display').innerHTML = `<h1>Code: ${code}</h1>`;
+                    // Wait for pairing...
+                    sbClient.channel('p').on('postgres_changes',{event:'UPDATE',schema:'public',table:'screens',filter:`id=eq.${SCREEN_ID}`},()=>location.reload()).subscribe();
+                }
             } else {
-                // APP / URL RENDERER
-                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay"></iframe>`;
-                loopTimer = setTimeout(play, item.duration_seconds * 1000);
+                startLoop();
             }
         }
 
+        async function startLoop() {
+            const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
+            if (data?.length) {
+                const item = data[0].media;
+                if (item.media_type === 'url') {
+                    document.getElementById('display').innerHTML = `<iframe src="${item.file_url}" style="width:100%; height:100%; border:none;"></iframe>`;
+                } else {
+                    document.getElementById('display').innerHTML = `<img src="${item.file_url}" style="width:100%;">`;
+                }
+            }
+        }
         boot();
     </script>
 </body>
