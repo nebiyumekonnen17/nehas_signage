@@ -2,51 +2,64 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nehas Admin | Digital Signage Manager</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary: #3b82f6; --dark: #1e293b; --bg: #f4f6f8; }
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; height: 100vh; }
-        .sidebar { width: 260px; background: var(--dark); color: white; padding: 20px; flex-shrink: 0; }
-        .main { flex: 1; padding: 40px; overflow-y: auto; }
-        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border-top: 5px solid var(--primary); }
-        input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; }
-        button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
-        .nav-item { padding: 15px; cursor: pointer; border-radius: 8px; margin-bottom: 5px; }
-        .nav-item:hover, .nav-item.active { background: #334155; }
-        .view { display: none; }
-        .view.active { display: block; }
+        :root { --primary: #3b82f6; --purple: #8b5cf6; --green: #10b981; --dark: #0f172a; --bg: #f8fafc; --text: #1e293b; }
+        body, html { margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); height: 100vh; display: flex; overflow: hidden; color: var(--text); }
+        .sidebar { width: 260px; background: var(--dark); color: white; display: flex; flex-direction: column; flex-shrink: 0; }
+        .sidebar h2 { text-align: center; padding: 30px 0; border-bottom: 1px solid #1e293b; margin: 0; letter-spacing: 1px; }
+        .nav-items { list-style: none; padding: 10px; margin: 0; }
+        .nav-items li { padding: 15px 20px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 14px; margin-bottom: 5px; }
+        .nav-items li:hover { background: #1e293b; }
+        .nav-items li.active { background: var(--primary); font-weight: bold; }
+        .main-content { flex: 1; padding: 40px; overflow-y: auto; }
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 25px; }
+        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border-top: 6px solid var(--primary); }
+        input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; box-sizing: border-box; margin-top: 10px; background: #f1f5f9; }
+        button { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 20px; transition: 0.3s; }
+        button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .status-msg { margin-top: 15px; text-align: center; font-size: 13px; font-weight: 600; min-height: 1.2em; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h2 style="text-align:center;">NEHAS SIGNAGE</h2>
-        <div class="nav-item active" onclick="showView('dash')">Control Center</div>
-        <div class="nav-item" onclick="showView('lib')">Media Library</div>
+        <h2>NEHAS SIGNAGE</h2>
+        <ul class="nav-items">
+            <li id="nav-dash" class="active" onclick="switchView('dash')">Control Dashboard</li>
+            <li id="nav-screens" onclick="switchView('screens')">Screens Manager</li>
+            <li id="nav-lib" onclick="switchView('lib')">Media Assets</li>
+        </ul>
     </div>
 
-    <div class="main">
-        <div id="view-dash" class="view active">
-            <h1>Dashboard</h1>
-            <div class="card">
-                <h3>📺 Pair New Display</h3>
-                <input type="text" id="p-code" placeholder="6-Digit Pairing Code">
-                <input type="text" id="p-name" placeholder="Display Name (e.g., Lobby TV)">
-                <button onclick="pairTV()">Link Device</button>
-                <p id="p-status" style="font-weight:bold; margin-top:10px; text-align:center;"></p>
-            </div>
-            <div class="card">
-                <h3>🧩 Fast Deploy URL</h3>
-                <select id="app-sid" class="screen-sel"></select>
-                <input type="text" id="app-url" placeholder="Paste URL (YouTube/Web)">
-                <button onclick="deployApp()">Send to Screen</button>
+    <div class="main-content">
+        <div id="view-dash" class="view-section active">
+            <h1>System Overview</h1>
+            <div class="grid">
+                <div class="card" style="border-top-color: var(--green);">
+                    <h3>Link New Display</h3>
+                    <p style="font-size:12px; color:#64748b;">Enter the 6-digit code shown on the TV</p>
+                    <input type="text" id="pair-code" placeholder="000 000">
+                    <input type="text" id="pair-name" placeholder="Display Name (e.g. Reception)">
+                    <button onclick="pairScreen()" style="background:var(--green)">Link Screen</button>
+                    <div id="pair-status" class="status-msg"></div>
+                </div>
+
+                <div class="card" style="border-top-color: var(--purple);">
+                    <h3>Deploy Web Content</h3>
+                    <select class="screen-selector" id="app-sid"></select>
+                    <input type="text" id="app-url" placeholder="Paste URL or YouTube Link">
+                    <button onclick="deployApp()" style="background:var(--purple)">Push to Screen</button>
+                    <div id="app-status" class="status-msg"></div>
+                </div>
             </div>
         </div>
 
-        <div id="view-lib" class="view">
-            <h1>Media Library</h1>
-            <div id="lib-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;"></div>
-        </div>
+        <div id="view-screens" class="view-section"><div id="screens-container" class="grid"></div></div>
+        <div id="view-lib" class="view-section"><div id="lib-container" class="grid"></div></div>
     </div>
 
     <script>
@@ -54,46 +67,40 @@
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        function showView(id) {
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById('view-' + id).classList.add('active');
-            if(id === 'dash') loadSelectors();
-            if(id === 'lib') loadLibrary();
+        function switchView(name) {
+            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-items li').forEach(l => l.classList.remove('active'));
+            document.getElementById('view-'+name).classList.add('active');
+            document.getElementById('nav-'+name).classList.add('active');
+            if(name === 'dash') loadSelectors();
+            if(name === 'lib') loadLibrary();
         }
 
         async function loadSelectors() {
             const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
-            document.querySelectorAll('.screen-sel').forEach(s => {
-                s.innerHTML = data?.map(d => `<option value="${d.id}">${d.name}</option>`).join('') || '<option>No screens paired</option>';
+            document.querySelectorAll('.screen-selector').forEach(sel => {
+                sel.innerHTML = data?.map(s => `<option value="${s.id}">${s.name}</option>`).join('') || '<option value="">No Active Screens</option>';
             });
         }
 
-        async function pairTV() {
-            const code = document.getElementById('p-code').value.trim();
-            const name = document.getElementById('p-name').value.trim();
-            const status = document.getElementById('p-status');
+        async function pairScreen() {
+            const code = document.getElementById('pair-code').value.trim();
+            const name = document.getElementById('pair-name').value.trim();
+            const status = document.getElementById('pair-status');
             
-            status.style.color = "blue"; status.innerText = "Finding code...";
+            status.style.color = "#3b82f6";
+            status.textContent = "Verifying pairing code...";
 
             const { data } = await sbClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
             
             if (data) {
                 await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
-                status.style.color = "green"; status.innerText = "✅ Display Linked!";
+                status.style.color = "#10b981";
+                status.textContent = "Successfully Linked!";
                 loadSelectors();
             } else {
-                status.style.color = "red"; status.innerText = "❌ Code Invalid or Expired.";
-            }
-        }
-
-        async function deployApp() {
-            const url = document.getElementById('app-url').value;
-            const sid = document.getElementById('app-sid').value;
-            const { data } = await sbClient.from('media').insert([{ file_name: "Web Link", file_url: url, media_type: 'url' }]).select();
-            if (data) {
-                await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: data[0].id, duration_seconds: 60 }]);
-                alert("Deployed successfully!");
+                status.style.color = "#ef4444";
+                status.textContent = "Invalid Code. Please try again.";
             }
         }
 
