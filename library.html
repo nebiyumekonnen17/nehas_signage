@@ -8,140 +8,139 @@
     <style>
         body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
         .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
-        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; }
-        .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; margin: 0; }
+        .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-weight: normal; }
         .nav-items { list-style: none; padding: 0; margin: 0; }
-        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
-        .nav-items li:hover, .nav-items li.active { background-color: #3b82f6; }
-
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; }
+        .nav-items li.active { background-color: #3b82f6; }
+        
         .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .media-card { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .media-preview { width: 100%; height: 140px; object-fit: cover; background: #000; display: block; }
+        .video-label { background: #1e293b; color: #3b82f6; height: 140px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
         
-        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .media-card { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
-        .media-preview { width: 100%; height: 150px; object-fit: contain; background: #000; }
-        .video-label { height: 150px; background: #1e293b; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .card-body { padding: 15px; }
+        .file-name { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 10px; }
         
-        .card-body { padding: 15px; flex: 1; }
-        .card-body b { display: block; margin-bottom: 10px; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        .assign-box { display: flex; gap: 5px; margin-top: 10px; }
-        select { flex: 1; padding: 5px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 0.8rem; }
-        .push-btn { background: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        .delete-file-btn { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.75rem; margin-top: 10px; text-decoration: underline; padding: 0; }
+        select, button { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #cbd5e1; margin-bottom: 5px; font-size: 12px; }
+        button { background: #3b82f6; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button.del-btn { background: #fee2e2; color: #ef4444; margin-top: 10px; }
+        button:hover { opacity: 0.9; }
     </style>
 </head>
 <body>
+
     <div class="sidebar">
         <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
         <ul class="nav-items">
             <li onclick="location.href='index.html'">Dashboard</li>
             <li onclick="location.href='screens.html'">Screens Manager</li>
-            <li class="active">Media Library</li>
+            <li class="active" onclick="location.href='library.html'">Media Library</li>
         </ul>
     </div>
 
     <div class="main-content">
-        <div class="header">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1>Media Library</h1>
-            <button onclick="loadLibrary()" style="padding: 8px 15px; cursor: pointer;">Refresh Library</button>
+            <button onclick="loadLibrary()" style="width: auto; padding: 10px 20px;">Refresh Library</button>
         </div>
-
+        
         <div id="library-container" class="library-grid">
             </div>
     </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
-        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6Mj어93AwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = window.supabase.createClient(S_URL, S_KEY);
-        
+
         let pairedScreens = [];
 
-        async function loadData() {
-            // 1. Get screens for the dropdowns
-            const { data: screens } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
+        async function init() {
+            // 1. Get screens so we can populate the dropdowns
+            const { data: screens } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
             pairedScreens = screens || [];
             
-            // 2. Get all media
+            // 2. Load the media
             loadLibrary();
         }
 
         async function loadLibrary() {
             const container = document.getElementById('library-container');
-            container.innerHTML = 'Loading library...';
+            container.innerHTML = "Loading assets...";
 
             const { data: media, error } = await sbClient.from('media').select('*').order('created_at', { ascending: false });
 
-            container.innerHTML = '';
-            if (!media || media.length === 0) {
-                container.innerHTML = '<p>Your library is empty. Upload something from the Dashboard!</p>';
+            if (error || !media.length) {
+                container.innerHTML = "No media found in library.";
                 return;
             }
 
-            media.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'media-card';
-                
-                const preview = item.media_type === 'video' 
-                    ? `<div class="video-label">MP4 VIDEO</div>` 
-                    : `<img src="${item.file_url}" class="media-preview">`;
-
+            container.innerHTML = media.map(item => {
                 const screenOptions = pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-
-                card.innerHTML = `
-                    ${preview}
-                    <div class="card-body">
-                        <b>${item.file_name}</b>
-                        <div class="assign-box">
-                            <select id="select-${item.id}">
-                                ${screenOptions || '<option>No screens</option>'}
+                
+                return `
+                    <div class="media-card">
+                        ${item.media_type === 'video' 
+                            ? `<div class="video-label">🎬 VIDEO CONTENT</div>` 
+                            : `<img src="${item.media.file_url}" class="media-preview">`}
+                        
+                        <div class="card-body">
+                            <div class="file-name">${item.file_name}</div>
+                            
+                            <label style="font-size: 10px; color: #64748b;">Deploy to:</label>
+                            <select id="sel-${item.id}">
+                                ${screenOptions || '<option>No screens paired</option>'}
                             </select>
-                            <button class="push-btn" onclick="assignToScreen('${item.id}')">Push</button>
+                            <input type="number" id="dur-${item.id}" value="10" placeholder="Secs" style="width: 100%; box-sizing: border-box; margin-bottom: 5px; padding: 5px;">
+                            <button onclick="deployExisting('${item.id}')">Add to Playlist</button>
+                            
+                            <button class="del-btn" onclick="deleteFromLibrary('${item.id}')">Delete Permanently</button>
                         </div>
-                        <button class="delete-file-btn" onclick="deleteFromLibrary('${item.id}', '${item.file_url}')">Delete Permanently</button>
                     </div>
                 `;
-                container.appendChild(card);
-            });
+            }).join('');
         }
 
-        async function assignToScreen(mediaId) {
-            const screenId = document.getElementById(`select-${mediaId}`).value;
-            if (!screenId) return;
+        async function deployExisting(mediaId) {
+            const screenId = document.getElementById(`sel-${mediaId}`).value;
+            const duration = document.getElementById(`dur-${mediaId}`).value;
 
-            // Find current order to append to the end
-            const { data: currentItems } = await sbClient.from('playlist_items').select('display_order').eq('screen_id', screenId).order('display_order', { ascending: false }).limit(1);
-            const nextOrder = (currentItems?.length ? currentItems[0].display_order : 0) + 1;
+            if (!screenId) { alert("Select a screen first."); return; }
 
-            const { error } = await sbClient.from('playlist_items').insert([{ 
-                screen_id: screenId, 
-                media_id: mediaId, 
-                display_order: nextOrder, 
-                duration_seconds: 10 
+            // Get the current max order for that screen
+            const { data: currentPl } = await sbClient.from('playlist_items')
+                .select('display_order')
+                .eq('screen_id', screenId)
+                .order('display_order', { ascending: false })
+                .limit(1);
+
+            const nextOrder = (currentPl?.[0]?.display_order || 0) + 1;
+
+            const { error } = await sbClient.from('playlist_items').insert([{
+                screen_id: screenId,
+                media_id: mediaId,
+                display_order: nextOrder,
+                duration_seconds: duration
             }]);
 
-            if (!error) alert("Content pushed to screen!");
-            else alert("Error pushing content.");
+            if (error) alert("Error deploying: " + error.message);
+            else alert("Added to screen playlist!");
         }
 
-        async function deleteFromLibrary(id, url) {
-            if (!confirm("This will remove the file from ALL screens and delete it from storage. Continue?")) return;
+        async function deleteFromLibrary(id) {
+            if (!confirm("This will delete the file link and remove it from ALL screens. Continue?")) return;
 
-            // 1. Delete from playlist_items (Cascade)
+            // 1. Remove from all playlists first
             await sbClient.from('playlist_items').delete().eq('media_id', id);
-            
-            // 2. Delete from media table
+            // 2. Remove from media table
             await sbClient.from('media').delete().eq('id', id);
-
-            // 3. Delete from Storage bucket
-            const path = url.split('/public/signage-media/')[1];
-            await sbClient.storage.from('signage-media').remove([path]);
-
+            
             loadLibrary();
         }
 
-        loadData();
+        init();
     </script>
 </body>
 </html>
