@@ -2,31 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nehas Signage Management | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #3b82f6; --purple: #8b5cf6; --green: #10b981; --dark: #1e293b; --bg: #f4f6f8; }
         body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); height: 100vh; display: flex; overflow: hidden; }
-        
-        .sidebar { width: 250px; background: var(--dark); color: white; display: flex; flex-direction: column; flex-shrink: 0; }
-        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; margin: 0; }
-        .nav-items { list-style: none; padding: 0; margin: 0; }
-        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; font-size: 14px; transition: 0.2s; }
-        .nav-items li:hover { background: #334155; }
+        .sidebar { width: 250px; background: var(--dark); color: white; flex-shrink: 0; }
+        .sidebar h2 { text-align: center; padding: 25px 0; border-bottom: 1px solid #333; margin: 0; }
+        .nav-items { list-style: none; padding: 0; }
+        .nav-items li { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #333; transition: 0.2s; }
         .nav-items li.active { background: var(--primary); font-weight: bold; }
-        
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; }
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
         .view-section { display: none; }
         .view-section.active { display: block; }
-
-        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 5px solid var(--primary); margin-bottom: 20px; }
-        
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px; color: #475569; }
-        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
-        button { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 5px solid var(--primary); }
+        input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; font-size: 14px; }
+        button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
         .status-msg { margin-top: 10px; text-align: center; font-size: 13px; font-weight: bold; min-height: 1.2em; }
     </style>
 </head>
@@ -34,141 +26,91 @@
     <div class="sidebar">
         <h2>NEHAS SIGNAGE</h2>
         <ul class="nav-items">
-            <li id="nav-dashboard" class="active" onclick="switchView('dashboard')">Dashboard</li>
-            <li id="nav-screens" onclick="switchView('screens')">Screens Manager</li>
-            <li id="nav-library" onclick="switchView('library')">Media Library</li>
+            <li id="nav-dash" class="active" onclick="switchView('dash')">Dashboard</li>
+            <li id="nav-lib" onclick="switchView('lib')">Library & Screens</li>
         </ul>
     </div>
 
     <div class="main-content">
-        <div id="view-dashboard" class="view-section active">
+        <div id="view-dash" class="view-section active">
             <h1>Control Dashboard</h1>
-            <div class="grid-container">
-                
+            <div class="grid">
                 <div class="card">
                     <h3>📤 Upload Media</h3>
-                    <div class="form-group">
-                        <label>Target Screen</label>
-                        <select class="screen-selector" id="up-screen-select"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>File</label>
-                        <input type="file" id="media-file">
-                    </div>
-                    <button onclick="uploadAndDeploy()" id="btn-upload">Upload & Publish</button>
-                    <div id="deploy-status" class="status-msg"></div>
+                    <select class="screen-selector" id="up-sid"></select>
+                    <input type="file" id="up-file">
+                    <button onclick="uploadMedia()">Upload & Publish</button>
+                    <div id="up-status" class="status-msg"></div>
                 </div>
-
                 <div class="card" style="border-top-color: var(--purple);">
-                    <h3>🧩 Apps Marketplace</h3>
-                    <div class="form-group">
-                        <label>YouTube or Website URL</label>
-                        <input type="text" id="app-url-input" placeholder="https://youtube.com/...">
-                    </div>
-                    <div class="form-group">
-                        <label>Target Screen</label>
-                        <select class="screen-selector" id="app-screen-select"></select>
-                    </div>
-                    <button onclick="deployApp()" style="background: var(--purple);" id="btn-app">Deploy App</button>
+                    <h3>🧩 Apps / YouTube</h3>
+                    <input type="text" id="app-url" placeholder="Paste URL here">
+                    <select class="screen-selector" id="app-sid"></select>
+                    <button onclick="deployApp()" style="background:var(--purple)">Deploy App</button>
                     <div id="app-status" class="status-msg"></div>
                 </div>
-
                 <div class="card" style="border-top-color: var(--green);">
-                    <h3>📺 Pair Screen</h3>
-                    <input type="text" id="pair-code" placeholder="6-Digit Code">
-                    <input type="text" id="pair-name" placeholder="Screen Name" style="margin-top:10px;">
-                    <button onclick="pairScreen()" style="background: var(--green); margin-top:15px;">Pair Now</button>
-                    <div id="pair-status" class="status-msg"></div>
+                    <h3>📺 Pair TV</h3>
+                    <input type="text" id="p-code" placeholder="6-Digit Code">
+                    <input type="text" id="p-name" placeholder="TV Name">
+                    <button onclick="pairTV()" style="background:var(--green)">Pair Screen</button>
                 </div>
-
             </div>
         </div>
 
-        <div id="view-screens" class="view-section"><h1>Screens Manager</h1><div id="screen-list" class="grid-container"></div></div>
-        <div id="view-library" class="view-section"><h1>Media Library</h1><div id="library-container" class="grid-container"></div></div>
+        <div id="view-lib" class="view-section">
+            <h1>Media Library</h1>
+            <div id="lib-container" class="grid"></div>
+        </div>
     </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const CLOUD_NAME = 'dfgfiope9';
+        const UPLOAD_PRESET = 'nehas_unsigned'; 
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        // Switch Views without breaking Navigation
         function switchView(name) {
             document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-items li').forEach(l => l.classList.remove('active'));
-            document.getElementById(`view-${name}`).classList.add('active');
-            document.getElementById(`nav-${name}`).classList.add('active');
-            if(name === 'dashboard') loadScreenSelectors();
-            if(name === 'library') loadLibrary();
+            document.getElementById('view-'+name).classList.add('active');
+            document.getElementById('nav-'+name).classList.add('active');
+            if(name === 'dash') loadSelectors();
+            if(name === 'lib') loadLibrary();
         }
 
-        async function loadScreenSelectors() {
-            const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
-            if(error) return console.error(error);
-            const selectors = document.querySelectorAll('.screen-selector');
-            selectors.forEach(sel => {
-                sel.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('') || '<option value="">Pair a screen first</option>';
+        async function loadSelectors() {
+            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            document.querySelectorAll('.screen-selector').forEach(sel => {
+                sel.innerHTML = data?.map(s => `<option value="${s.id}">${s.name}</option>`).join('') || '<option>No screens paired</option>';
             });
         }
 
         async function deployApp() {
-            const urlInput = document.getElementById('app-url-input');
-            const sidInput = document.getElementById('app-screen-select');
+            const url = document.getElementById('app-url').value;
+            const sid = document.getElementById('app-sid').value;
             const status = document.getElementById('app-status');
-
-            if(!urlInput.value || !sidInput.value) {
-                alert("Please enter a URL and select a screen.");
-                return;
-            }
-
+            
             status.textContent = "Deploying...";
-            let finalUrl = urlInput.value.trim();
-
-            // YouTube Fix
-            if(finalUrl.includes("watch?v=")) {
-                finalUrl = finalUrl.replace("watch?v=", "embed/") + "?autoplay=1&mute=1";
-            }
-
-            try {
-                // 1. Create Media
-                const { data: mData, error: mErr } = await sbClient.from('media').insert([{ 
-                    file_name: "Web App", file_url: finalUrl, media_type: 'url' 
-                }]).select();
-
-                if(mErr) throw mErr;
-
-                // 2. Link to Playlist
-                const { error: pErr } = await sbClient.from('playlist_items').insert([{ 
-                    screen_id: sidInput.value, media_id: mData[0].id, duration_seconds: 60 
-                }]);
-
-                if(pErr) throw pErr;
-
-                status.textContent = "✅ Success! Content sent to TV.";
-                urlInput.value = "";
-            } catch (e) {
-                status.textContent = "❌ Error: " + e.message;
-                alert("Deployment failed: " + e.message);
-            }
+            const { data, error } = await sbClient.from('media').insert([{ file_name: "Web App", file_url: url, media_type: 'url' }]).select();
+            if (error) { status.textContent = "Error: " + error.message; return; }
+            
+            await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: data[0].id, duration_seconds: 60 }]);
+            status.textContent = "✅ Deployed!";
         }
 
-        async function pairScreen() {
-            const code = document.getElementById('pair-code').value;
-            const name = document.getElementById('pair-name').value;
-            const status = document.getElementById('pair-status');
-
-            const { data, error } = await sbClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false);
-            if(data?.length) {
+        async function pairTV() {
+            const code = document.getElementById('p-code').value;
+            const name = document.getElementById('p-name').value;
+            const { data } = await sbClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false);
+            if (data?.length) {
                 await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data[0].id);
-                status.textContent = "✅ Paired!";
-                loadScreenSelectors();
-            } else {
-                status.textContent = "❌ Invalid Code";
+                alert("Success!"); loadSelectors();
             }
         }
 
-        window.onload = loadScreenSelectors;
+        window.onload = loadSelectors;
     </script>
 </body>
 </html>
