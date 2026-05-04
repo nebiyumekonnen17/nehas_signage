@@ -6,9 +6,50 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: sans-serif; }
-        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.3); z-index: 1; transition: opacity 1.5s; }
-        #media-container { position: relative; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; }
-        .glass-card { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(25px); padding: 60px; border-radius: 40px; border: 1px solid rgba(59, 130, 246, 0.2); text-align: center; color: white; box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8); }
+        
+        /* The Background Image */
+        #bg { 
+            position: fixed; 
+            width: 100%; 
+            height: 100%; 
+            background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; 
+            filter: brightness(0.4); 
+            z-index: 1; 
+            opacity: 0; /* Start hidden */
+            transition: opacity 2s ease-in-out; /* Slow smooth fade in */
+        }
+        
+        #media-container { 
+            position: relative; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 5; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        /* The UI Card */
+        .glass-card { 
+            background: rgba(15, 23, 42, 0.7); 
+            backdrop-filter: blur(25px); 
+            padding: 60px; 
+            border-radius: 40px; 
+            border: 1px solid rgba(59, 130, 246, 0.2); 
+            text-align: center; 
+            color: white; 
+            box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8);
+            opacity: 0; /* Start hidden */
+            transform: translateY(20px);
+            transition: opacity 1.5s ease-out, transform 1.5s ease-out;
+        }
+
+        /* Class to trigger the reveal */
+        .glass-card.reveal {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         .code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: monospace; color: #fff; text-shadow: 0 0 40px #3b82f6; letter-spacing: 5px; }
         #log { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.6; }
     </style>
@@ -17,8 +58,8 @@
     <div id="bg"></div>
     <div id="media-container">
         <div class="glass-card" id="ui-box">
-            <h2 id="ui-header" style="letter-spacing:5px; color:#3b82f6;">WAKING UP...</h2>
-            <div id="ui-content">Please wait...</div>
+            <h2 id="ui-header" style="letter-spacing:5px; color:#3b82f6;">NEHAS SIGNAGE</h2>
+            <div id="ui-content">Initializing System...</div>
         </div>
     </div>
     <div id="log">OS_STATUS: <span id="status-text">BOOTING</span></div>
@@ -33,6 +74,14 @@
 
         async function boot() {
             const status = document.getElementById('status-text');
+            const bg = document.getElementById('bg');
+            const ui = document.getElementById('ui-box');
+
+            // 1. Show the background FIRST
+            setTimeout(() => { bg.style.opacity = "1"; }, 500);
+
+            // 2. Wait a moment, then show the UI card
+            setTimeout(() => { ui.classList.add('reveal'); }, 2000);
             
             if (SCREEN_ID && SAVED_CODE) {
                 status.innerText = "VERIFYING_LOCK";
@@ -43,7 +92,6 @@
                         return showPairingUI(data.pairing_code);
                     }
                 } catch (e) {
-                    // If network fails, still show the saved code
                     return showPairingUI(SAVED_CODE);
                 }
             }
@@ -55,10 +103,10 @@
             status.innerText = "GENERATING_ID";
             
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            showPairingUI(code); // Show it locally first!
+            showPairingUI(code);
 
             try {
-                const { data, error } = await sbClient.from('screens').insert([
+                const { data } = await sbClient.from('screens').insert([
                     { name: 'Player-Unit', pairing_code: code, is_paired: false }
                 ]).select();
 
@@ -93,7 +141,10 @@
             document.getElementById('status-text').innerText = "SYSTEM_LIVE";
             const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
             if (data?.length > 0) {
+                // Hide the pairing UI and background to show media
                 document.getElementById('bg').style.opacity = "0";
+                document.getElementById('ui-box').style.display = "none";
+                
                 const m = data[0].media;
                 const cont = document.getElementById('media-container');
                 if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()" style="width:100%;height:100%;object-fit:cover;"></video>`;
