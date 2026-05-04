@@ -6,10 +6,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #05070a; overflow: hidden; font-family: sans-serif; }
-        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.4); z-index: 1; }
+        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.4); z-index: 1; transition: opacity 1.5s; }
         #canvas { position: fixed; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
         #media-container { position: relative; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; }
-        .glass-card { background: rgba(0,0,0,0.5); backdrop-filter: blur(20px); padding: 50px 70px; border-radius: 35px; border: 1px solid rgba(255,255,255,0.1); text-align: center; color: white; box-shadow: 0 20px 60px rgba(0,0,0,0.7); animation: float 6s ease-in-out infinite; }
+        .glass-card { background: rgba(0,0,0,0.5); backdrop-filter: blur(25px); padding: 50px 70px; border-radius: 35px; border: 1px solid rgba(255,255,255,0.1); text-align: center; color: white; box-shadow: 0 20px 60px rgba(0,0,0,0.7); animation: float 6s ease-in-out infinite; }
         .code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: monospace; color: #fff; text-shadow: 0 0 30px #3b82f6; }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
         #status { position: fixed; bottom: 10px; left: 15px; font-size: 10px; color: #00ff00; z-index: 100; font-family: monospace; }
@@ -25,55 +25,69 @@
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
+        
         let SCREEN_ID = localStorage.getItem('nehas_sid');
 
-        // Simple Particles
+        // Simple Background Particles
         const c = document.getElementById('canvas'); const ctx = c.getContext('2d');
         let pts = []; function res() { c.width = window.innerWidth; c.height = window.innerHeight; }
         window.onresize = res; res();
-        class P { constructor() { this.x = Math.random()*c.width; this.y = Math.random()*c.height; this.v = Math.random()*0.5; } update() { this.y -= this.v; if(this.y<0) this.y=c.height; } draw() { ctx.fillStyle="rgba(59,130,246,0.3)"; ctx.beginPath(); ctx.arc(this.x,this.y,2,0,Math.PI*2); ctx.fill(); } }
-        for(let i=0;i<50;i++) pts.push(new P());
+        class P { constructor() { this.x = Math.random()*c.width; this.y = Math.random()*c.height; this.v = Math.random()*0.4; } update() { this.y -= this.v; if(this.y<0) this.y=c.height; } draw() { ctx.fillStyle="rgba(59,130,246,0.3)"; ctx.beginPath(); ctx.arc(this.x,this.y,2,0,Math.PI*2); ctx.fill(); } }
+        for(let i=0;i<40;i++) pts.push(new P());
         function anim() { ctx.clearRect(0,0,c.width,c.height); pts.forEach(p=>{p.update();p.draw();}); requestAnimationFrame(anim); }
         anim();
 
         async function boot() {
             if (!SCREEN_ID) {
-                await startPairing();
+                await startNewPairing();
             } else {
-                const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
-                if (!data || !data.is_paired) await startPairing();
-                else startLoop();
+                // Verify if the stored ID still exists in the DB
+                const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
+                if (!data) {
+                    await startNewPairing();
+                } else if (!data.is_paired) {
+                    showPairingUI(data.pairing_code);
+                } else {
+                    startLoop();
+                }
             }
         }
 
-        async function startPairing() {
+        async function startNewPairing() {
+            document.getElementById('log').innerText = "REGISTERING...";
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            document.getElementById('log').innerText = "SYNCING_DB...";
 
-            // 1. Show UI immediately so the user sees the code
-            document.getElementById('media-container').innerHTML = `
-                <div class="glass-card">
-                    <div style="letter-spacing:5px; color:#3b82f6;">PAIRING CODE</div>
-                    <div class="code">${code}</div>
-                    <p>Enter this on your admin dashboard</p>
-                </div>`;
-
-            // 2. Register with DB in the background
             const { data, error } = await sbClient.from('screens').insert([{ name: 'New Display', pairing_code: code, is_paired: false }]).select();
             
             if (data) {
                 SCREEN_ID = data[0].id;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
-                sbClient.channel('p').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, () => location.reload()).subscribe();
+                showPairingUI(code);
             } else {
-                document.getElementById('log').innerText = "RETRYING_DB...";
-                setTimeout(startPairing, 5000);
+                document.getElementById('log').innerText = "DB ERROR. RETRYING...";
+                setTimeout(startNewPairing, 5000);
             }
+        }
+
+        function showPairingUI(code) {
+            document.getElementById('log').innerText = "AWAITING PAIRING";
+            document.getElementById('media-container').innerHTML = `
+                <div class="glass-card">
+                    <div style="letter-spacing:5px; color:#3b82f6; font-weight:bold;">ACTIVATION CODE</div>
+                    <div class="code">${code}</div>
+                    <p style="opacity:0.7;">Enter this code on your management dashboard</p>
+                </div>`;
+            
+            // Listen for the dashboard to update this specific screen
+            sbClient.channel('p').on('postgres_changes', { 
+                event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
+            }, () => location.reload()).subscribe();
         }
 
         async function startLoop() {
             document.getElementById('log').innerText = "LIVE";
             const { data } = await sbClient.from('playlist_items').select('duration_seconds, media!inner(*)').eq('screen_id', SCREEN_ID);
+            
             if (data?.length > 0) {
                 const m = data[0].media;
                 const cont = document.getElementById('media-container');
@@ -82,9 +96,10 @@
                 else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" allow="autoplay"></iframe>`;
                 else cont.innerHTML = `<img src="${m.file_url}">`;
             } else {
-                document.getElementById('media-container').innerHTML = `<div class="glass-card"><h2>ነሃስ ማስታወቂያ</h2><p>Ready. Add media now.</p></div>`;
+                document.getElementById('media-container').innerHTML = `<div class="glass-card"><h2>ነሃስ ማስታወቂያ</h2><p>Linked. Add media to start.</p></div>`;
             }
         }
+        
         boot();
     </script>
 </body>
