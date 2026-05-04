@@ -14,19 +14,16 @@
         .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
         .nav-items li:hover, .nav-items li.active { background-color: #3b82f6; }
         .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; }
-        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #3b82f6; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: #475569; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1200px; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #3b82f6; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #475569; font-size: 14px; }
         input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
-        .file-details { margin-top: 10px; padding: 10px; background: #f1f5f9; border-radius: 4px; display: none; font-size: 0.85rem; }
-        button { background-color: #3b82f6; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 10px; transition: 0.3s; }
-        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
-        .progress-wrapper { margin-top: 20px; display: none; }
-        .progress-container { width: 100%; background: #e2e8f0; border-radius: 10px; height: 25px; position: relative; overflow: hidden; }
-        .progress-bar { width: 0%; height: 100%; background: #10b981; transition: 0.2s; }
-        .progress-text { position: absolute; width: 100%; text-align: center; line-height: 25px; font-weight: bold; font-size: 0.85rem; color: #1e293b; }
+        button { background-color: #3b82f6; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; transition: 0.3s; }
+        button:disabled { background-color: #94a3b8; }
         .status-msg { margin-top: 10px; text-align: center; font-weight: bold; font-size: 0.9rem; min-height: 1.2em; }
+        .progress-wrapper { margin-top: 15px; display: none; background: #e2e8f0; border-radius: 10px; height: 20px; overflow: hidden; position: relative; }
+        .progress-bar { width: 0%; height: 100%; background: #10b981; transition: 0.2s; }
     </style>
 </head>
 <body>
@@ -40,110 +37,124 @@
     </div>
 
     <div class="main-content">
-        <h1>Dashboard</h1>
+        <h1>Control Dashboard</h1>
         <div class="grid-container">
-            <div class="card" style="border-top-color: #10b981;">
-                <h3>Add New Screen</h3>
-                <div class="form-group">
-                    <label>6-Digit Code</label>
-                    <input type="text" id="pair-code" placeholder="Check your TV for code">
-                </div>
-                <div class="form-group">
-                    <label>Screen Name</label>
-                    <input type="text" id="pair-name" placeholder="e.g. Lobby TV">
-                </div>
-                <button onclick="pairScreen()">Pair Screen</button>
-                <div id="pair-status" class="status-msg"></div>
-            </div>
-
+            
             <div class="card">
-                <h3>Upload Media</h3>
+                <h3>Upload Content</h3>
                 <div class="form-group">
                     <label>Target Screen</label>
-                    <select id="screen-select"><option value="">Loading screens...</option></select>
+                    <select id="screen-select"><option>Loading...</option></select>
                 </div>
                 <div class="form-group">
-                    <label>File (Image or MP4)</label>
+                    <label>File (Image/Video)</label>
                     <input type="file" id="media-file" accept="image/*,video/mp4">
-                    <div id="file-details" class="file-details">
-                        <b>Size:</b> <span id="info-size">0.00</span> MB
-                    </div>
                 </div>
                 <div class="form-group">
-                    <label>Display Duration (s)</label>
+                    <label>Duration (Seconds)</label>
                     <input type="number" id="duration" value="10">
                 </div>
                 <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Deploy</button>
                 <div class="progress-wrapper" id="progress-wrapper">
-                    <div class="progress-container">
-                        <div class="progress-bar" id="progress-bar"></div>
-                        <div class="progress-text" id="progress-percent">0%</div>
-                    </div>
+                    <div class="progress-bar" id="progress-bar"></div>
                 </div>
                 <div id="deploy-status" class="status-msg"></div>
             </div>
+
+            <div class="card" style="border-top-color: #8b5cf6;">
+                <h3>Apps & Widgets</h3>
+                <div class="form-group">
+                    <label>App Type</label>
+                    <select id="app-type" onchange="updateAppHint()">
+                        <option value="insta">Instagram/Facebook Feed</option>
+                        <option value="reviews">Google Reviews</option>
+                        <option value="sports">Live Sports Scores</option>
+                        <option value="news">RSS News Ticker</option>
+                        <option value="menu">Digital Menu Board</option>
+                        <option value="slides">Google Slides</option>
+                        <option value="youtube">YouTube (Embed Link)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>App URL</label>
+                    <input type="text" id="app-url-input" placeholder="Paste link here...">
+                    <small id="app-hint" style="color:#64748b; font-size:11px;">Use Behold.so for Social Feeds.</small>
+                </div>
+                <div class="form-group">
+                    <label>Target Screen</label>
+                    <select id="app-screen-select"><option>Loading...</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Show for (Seconds)</label>
+                    <input type="number" id="app-duration" value="60">
+                </div>
+                <button onclick="deployApp()" style="background:#8b5cf6;">Deploy App</button>
+                <div id="app-status" class="status-msg"></div>
+            </div>
+
+            <div class="card" style="border-top-color: #10b981;">
+                <h3>Pair New TV</h3>
+                <div class="form-group">
+                    <label>6-Digit Code</label>
+                    <input type="text" id="pair-code" placeholder="000000">
+                </div>
+                <div class="form-group">
+                    <label>Screen Name</label>
+                    <input type="text" id="pair-name" placeholder="Main Lobby">
+                </div>
+                <button onclick="pairScreen()" style="background:#10b981;">Pair Screen</button>
+                <div id="pair-status" class="status-msg"></div>
+            </div>
+
         </div>
     </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        
-        // Cloudinary Details
         const CLOUD_NAME = 'dfgfiope9';
         const UPLOAD_PRESET = 'nehas_unsigned'; 
-        const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`;
-
+        
         let sbClient;
 
-        // SAFE STARTUP: Wait for window and Supabase library to load
         window.onload = function() {
             if (window.supabase) {
                 sbClient = window.supabase.createClient(S_URL, S_KEY);
                 loadScreens();
-            } else {
-                alert("Supabase library failed to load. Please check your internet or disable Brave Shields.");
             }
         };
 
         async function loadScreens() {
-            try {
-                const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
-                if (error) throw error;
-
-                const sel = document.getElementById('screen-select');
-                if (!data || data.length === 0) {
-                    sel.innerHTML = '<option value="">No screens found</option>';
-                } else {
-                    sel.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-                }
-            } catch (e) { console.error("Load error:", e); }
+            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
+            const selects = [document.getElementById('screen-select'), document.getElementById('app-screen-select')];
+            selects.forEach(sel => {
+                if (!data?.length) sel.innerHTML = '<option value="">No screens paired</option>';
+                else sel.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            });
         }
 
-        async function pairScreen() {
-            const c = document.getElementById('pair-code').value;
-            const n = document.getElementById('pair-name').value;
-            const status = document.getElementById('pair-status');
-            
-            try {
-                const { data } = await sbClient.from('screens').select('id').eq('pairing_code', c).eq('is_paired', false);
-                if(data?.length) {
-                    await sbClient.from('screens').update({ name: n, is_paired: true, pairing_code: null }).eq('id', data[0].id);
-                    status.style.color = "#10b981"; status.textContent = "Paired!";
-                    loadScreens();
-                } else { status.style.color = "#ef4444"; status.textContent = "Invalid Code."; }
-            } catch (e) { status.textContent = "Error pairing."; }
+        function updateAppHint() {
+            const type = document.getElementById('app-type').value;
+            const hints = {
+                insta: "Use Behold.so for Social Feeds.",
+                reviews: "Use Elfsight for Google Review widgets.",
+                sports: "Use Scorestream for live scores.",
+                news: "Use RSS.app for news tickers.",
+                menu: "Use Canva 'Embed' links for menus.",
+                slides: "Use Google Slides 'Publish to Web' links.",
+                youtube: "Use the YouTube 'Embed' link format."
+            };
+            document.getElementById('app-hint').innerText = hints[type];
         }
 
         async function uploadAndDeploy() {
             const sid = document.getElementById('screen-select').value;
             const file = document.getElementById('media-file').files[0];
             const dur = document.getElementById('duration').value;
-            if(!sid || !file) { alert("Select a screen and file first."); return; }
+            if(!sid || !file) return alert("Select screen and file!");
 
             const btn = document.getElementById('deploy-btn');
             const bar = document.getElementById('progress-bar');
-            const txt = document.getElementById('progress-percent');
             const wrap = document.getElementById('progress-wrapper');
             const status = document.getElementById('deploy-status');
 
@@ -154,38 +165,60 @@
             formData.append('upload_preset', UPLOAD_PRESET);
 
             try {
-                const cloudResponse = await new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('POST', CLOUDINARY_URL);
-                    xhr.upload.onprogress = (p) => {
-                        const pct = Math.round((p.loaded / p.total) * 100);
-                        bar.style.width = pct + '%'; txt.textContent = pct + '%';
-                    };
-                    xhr.onload = () => resolve(JSON.parse(xhr.responseText));
-                    xhr.onerror = () => reject("Cloudinary error");
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`);
+                xhr.upload.onprogress = (p) => bar.style.width = Math.round((p.loaded/p.total)*100) + '%';
+                
+                const cloudRes = await new Promise((res, rej) => {
+                    xhr.onload = () => res(JSON.parse(xhr.responseText));
+                    xhr.onerror = rej;
                     xhr.send(formData);
                 });
 
                 const { data: mData } = await sbClient.from('media').insert([{ 
-                    file_name: file.name, file_url: cloudResponse.secure_url, media_type: (cloudResponse.resource_type === 'video' ? 'video' : 'image') 
+                    file_name: file.name, file_url: cloudRes.secure_url, media_type: cloudRes.resource_type 
                 }]).select();
 
                 const { data: cPl } = await sbClient.from('playlist_items').select('display_order').eq('screen_id', sid).order('display_order', {ascending:false}).limit(1);
                 const ord = (cPl?.[0]?.display_order || 0) + 1;
 
                 await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, display_order: ord, duration_seconds: dur }]);
-
-                status.style.color = "#10b981"; status.textContent = "Success! Deployed.";
-            } catch (e) { status.textContent = "Error: " + e; }
+                status.textContent = "Success! Deployed.";
+            } catch (e) { status.textContent = "Error: " + e.message; }
             finally { btn.disabled = false; }
         }
 
-        document.getElementById('media-file').onchange = function() {
-            if(this.files[0]) {
-                document.getElementById('info-size').textContent = (this.files[0].size / 1048576).toFixed(2);
-                document.getElementById('file-details').style.display = 'block';
+        async function deployApp() {
+            const sid = document.getElementById('app-screen-select').value;
+            const typeText = document.getElementById('app-type').options[document.getElementById('app-type').selectedIndex].text;
+            let url = document.getElementById('app-url-input').value;
+            const dur = document.getElementById('app-duration').value;
+
+            if(!sid || !url) return alert("Missing URL or Screen selection.");
+
+            if(url.includes("watch?v=")) {
+                url = url.replace("watch?v=", "embed/") + "?autoplay=1&mute=1";
             }
-        };
+
+            const { data: mData } = await sbClient.from('media').insert([{ 
+                file_name: `App: ${typeText}`, file_url: url, media_type: 'url' 
+            }]).select();
+
+            await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, display_order: 99, duration_seconds: dur }]);
+            alert("App deployed!");
+            document.getElementById('app-url-input').value = "";
+        }
+
+        async function pairScreen() {
+            const c = document.getElementById('pair-code').value;
+            const n = document.getElementById('pair-name').value;
+            const { data } = await sbClient.from('screens').select('id').eq('pairing_code', c).eq('is_paired', false);
+            if(data?.length) {
+                await sbClient.from('screens').update({ name: n, is_paired: true, pairing_code: null }).eq('id', data[0].id);
+                document.getElementById('pair-status').textContent = "Paired!";
+                loadScreens();
+            } else { document.getElementById('pair-status').textContent = "Invalid Code."; }
+        }
     </script>
 </body>
 </html>
