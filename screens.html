@@ -11,23 +11,37 @@
         .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; margin: 0; }
         .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-weight: normal; }
         .nav-items { list-style: none; padding: 0; margin: 0; }
-        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; }
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
+        .nav-items li:hover { background-color: #334155; }
         .nav-items li.active { background-color: #3b82f6; }
+        
         .main-content { flex: 1; padding: 30px; display: flex; gap: 20px; overflow: hidden; }
-        .screen-list { width: 320px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .screen-item { padding: 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; position: relative; padding-left: 40px; }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; position: absolute; left: 15px; top: 20px; border: 2px solid white; }
+        .screen-list { width: 320px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+        .screen-item { padding: 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; position: relative; padding-left: 45px; transition: 0.2s; }
+        .screen-item:hover { background: #f8fafc; }
+        .screen-item.active-item { background: #eff6ff; border-left: 4px solid #3b82f6; }
+
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; position: absolute; left: 18px; top: 20px; border: 2px solid white; }
         .online { background: #10b981; box-shadow: 0 0 8px #10b981; }
         .offline { background: #ef4444; }
-        .playlist-panel { flex: 1; background: white; border-radius: 8px; display: flex; flex-direction: column; }
-        .panel-header { padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc; }
-        .playlist-grid { padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; overflow-y: auto; }
-        .media-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; text-align: center; }
-        .media-preview { width: 100%; height: 110px; object-fit: cover; background: #000; }
-        .delete-btn { width: 100%; background: #fee2e2; color: #dc2626; border: none; padding: 10px; cursor: pointer; font-weight: bold; }
+
+        .playlist-panel { flex: 1; background: white; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .panel-header { padding: 15px 20px; border-bottom: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
+        
+        .playlist-grid { padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; overflow-y: auto; }
+        .media-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; text-align: center; background: #fff; }
+        .media-preview { width: 100%; height: 100px; object-fit: cover; background: #000; display: block; }
+        .video-placeholder { height: 100px; background: #1e293b; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-direction: column; }
+        
+        .delete-btn { width: 100%; background: #fff; color: #ef4444; border: none; padding: 8px; cursor: pointer; font-size: 12px; border-top: 1px solid #f1f5f9; font-weight: 600; }
+        .delete-btn:hover { background: #fee2e2; }
+
+        .unpair-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; display: none; }
+        .unpair-btn:hover { background: #dc2626; }
     </style>
 </head>
 <body>
+
     <div class="sidebar">
         <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
         <ul class="nav-items">
@@ -36,46 +50,121 @@
             <li onclick="location.href='library.html'">Media Library</li>
         </ul>
     </div>
+
     <div class="main-content">
         <div class="screen-list">
             <div class="panel-header">Connected Displays</div>
-            <div id="screen-container"></div>
+            <div id="screen-container" style="overflow-y: auto;"></div>
         </div>
+
         <div class="playlist-panel">
-            <div class="panel-header" id="p-title">Select a display</div>
-            <div id="playlist-container" class="playlist-grid"></div>
+            <div class="panel-header">
+                <span id="p-title">Select a display to manage</span>
+                <button id="unpair-btn" class="unpair-btn" onclick="unassignScreen()">Delete Screen Permanently</button>
+            </div>
+            <div id="playlist-container" class="playlist-grid">
+                </div>
         </div>
     </div>
+
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = window.supabase.createClient(S_URL, S_KEY);
+        
         let activeId = null;
 
+        // Load list of paired screens
         async function load() {
             const { data } = await sbClient.from('screens').select('*').eq('is_paired', true).order('name');
             const cont = document.getElementById('screen-container');
+            
             cont.innerHTML = data?.map(s => {
+                // Determine if online (heartbeat within last 3 minutes)
                 const isOnline = (new Date() - new Date(s.last_seen)) < 180000;
-                return `<div class="screen-item" onclick="sel('${s.id}', '${s.name}')"><div class="status-dot ${isOnline ? 'online' : 'offline'}"></div><b>${s.name}</b></div>`;
-            }).join('') || '';
+                const activeClass = s.id === activeId ? 'active-item' : '';
+                
+                return `
+                    <div class="screen-item ${activeClass}" onclick="sel('${s.id}', '${s.name}')">
+                        <div class="status-dot ${isOnline ? 'online' : 'offline'}"></div>
+                        <b>${s.name}</b>
+                        <div style="font-size:10px; color:#64748b;">${isOnline ? 'Active Now' : 'Last seen: ' + new Date(s.last_seen).toLocaleTimeString()}</div>
+                    </div>`;
+            }).join('') || '<div style="padding:20px; color:#64748b;">No paired screens.</div>';
         }
 
-        async function sel(id, name) { activeId = id; document.getElementById('p-title').textContent = "Live Loop: " + name; fetchPl(); }
+        // Select a screen to view playlist
+        async function sel(id, name) { 
+            activeId = id; 
+            document.getElementById('p-title').textContent = "Live Loop: " + name; 
+            document.getElementById('unpair-btn').style.display = 'block';
+            load(); // Refresh list to show active state
+            fetchPl(); 
+        }
 
+        // Fetch playlist for selected screen
         async function fetchPl() {
-            const { data } = await sbClient.from('playlist_items').select(`id, media ( file_url, file_name, media_type )`).eq('screen_id', activeId);
-            document.getElementById('playlist-container').innerHTML = data?.map(item => `
+            if(!activeId) return;
+            const { data } = await sbClient.from('playlist_items').select(`id, media ( file_url, file_name, media_type )`).eq('screen_id', activeId).order('display_order');
+            
+            const cont = document.getElementById('playlist-container');
+            if(!data || data.length === 0) {
+                cont.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:50px; color:#94a3b8;">This screen is empty. Add media from the Dashboard.</div>';
+                return;
+            }
+
+            cont.innerHTML = data.map(item => `
                 <div class="media-card">
-                    ${item.media.media_type === 'video' ? '<div class="media-preview" style="color:white;display:flex;align-items:center;justify-content:center;">VIDEO</div>' : `<img src="${item.media.file_url}" class="media-preview">`}
-                    <div style="padding:10px;font-size:12px;">${item.media.file_name}</div>
-                    <button class="delete-btn" onclick="rem('${item.id}')">Remove</button>
+                    ${item.media.media_type === 'video' 
+                        ? `<div class="video-placeholder">🎬<br>VIDEO<br><span style="font-size:8px; opacity:0.7;">${item.media.file_name}</span></div>` 
+                        : `<img src="${item.media.file_url}" class="media-preview">`}
+                    <div style="padding:8px; font-size:11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${item.media.file_name}
+                    </div>
+                    <button class="delete-btn" onclick="rem('${item.id}')">Remove from loop</button>
                 </div>
-            `).join('') || 'Empty loop.';
+            `).join('');
         }
 
-        async function rem(id) { if(confirm('Remove?')) { await sbClient.from('playlist_items').delete().eq('id', id); fetchPl(); } }
-        load(); setInterval(load, 30000);
+        // Remove single item from playlist
+        async function rem(id) { 
+            if(confirm('Remove this item from the TV loop?')) { 
+                await sbClient.from('playlist_items').delete().eq('id', id); 
+                fetchPl(); 
+            } 
+        }
+
+        // PERMANENT DELETE: Unassign and remove screen from DB
+        async function unassignScreen() {
+            if (!activeId) return;
+            
+            const confirmDelete = confirm("⚠️ PERMANENT DELETE\n\nThis will remove the screen from your account and wipe its history. The TV will reset and ask for a new pairing code. Continue?");
+            if (!confirmDelete) return;
+
+            try {
+                // 1. Delete playlist items first
+                await sbClient.from('playlist_items').delete().eq('screen_id', activeId);
+
+                // 2. Delete the screen itself
+                const { error } = await sbClient.from('screens').delete().eq('id', activeId);
+                if (error) throw error;
+
+                alert("Screen successfully deleted.");
+                
+                // Reset UI
+                activeId = null;
+                document.getElementById('unpair-btn').style.display = 'none';
+                document.getElementById('p-title').textContent = "Select a display to manage";
+                document.getElementById('playlist-container').innerHTML = '';
+                load(); 
+            } catch (e) {
+                alert("Error: " + e.message);
+            }
+        }
+
+        // Initial load and periodic refresh for status dots
+        load(); 
+        setInterval(load, 30000); // Check online/offline status every 30 seconds
     </script>
 </body>
 </html>
