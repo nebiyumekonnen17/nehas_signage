@@ -8,7 +8,7 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: 'Inter', sans-serif; }
         
-        /* High-End Background */
+        /* High-End Background Map */
         #bg { 
             position: fixed; 
             width: 100%; 
@@ -30,23 +30,17 @@
             justify-content: center; 
         }
 
-        /* True Glassmorphism Card */
+        /* True Glassmorphism Card (0.2 Opacity & 40px Blur) */
         .glass-card { 
-            /* Lower alpha (0.2) makes it truly see-through */
             background: rgba(15, 23, 42, 0.2); 
-            /* 40px is the "sweet spot" for seeing shapes behind the glass */
             backdrop-filter: blur(40px); 
             -webkit-backdrop-filter: blur(40px);
-            
             padding: 70px 90px; 
             border-radius: 50px; 
-            /* Subtle white border makes the edge look like real glass */
             border: 1px solid rgba(255, 255, 255, 0.15); 
-            
             text-align: center; 
             color: white; 
             box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5);
-            
             opacity: 0; 
             transform: translateY(40px);
             transition: opacity 2s cubic-bezier(0.16, 1, 0.3, 1), transform 2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -72,7 +66,7 @@
 
         .instruction { font-size: 1.2rem; color: #94a3b8; opacity: 0.8; }
 
-        #log { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.5; letter-spacing: 1px; }
+        #status-ticker { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.5; letter-spacing: 1px; }
     </style>
 </head>
 <body>
@@ -81,10 +75,10 @@
         <div class="glass-card" id="ui-box">
             <div class="brand-eng">NEHAS SIGNAGE</div>
             <div class="brand-am">ነሃስ ማስታወቂያ</div>
-            <div id="ui-content" class="instruction">Initializing System...</div>
+            <div id="ui-content" class="instruction">Initializing OS...</div>
         </div>
     </div>
-    <div id="log">OS_STATUS: <span id="status-text">BOOTING</span></div>
+    <div id="status-ticker">SYS_LINK // <span id="log-text">BOOTING</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
@@ -94,15 +88,21 @@
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         let SAVED_CODE = localStorage.getItem('nehas_code');
 
+        function updateLog(msg) {
+            const el = document.getElementById('log-text');
+            if (el) el.innerText = msg;
+        }
+
         async function boot() {
             const bg = document.getElementById('bg');
             const ui = document.getElementById('ui-box');
 
-            // Visual Reveal Sequence
+            // Staggered reveal for high-end feel
             setTimeout(() => { bg.style.opacity = "1"; }, 400);
             setTimeout(() => { ui.classList.add('reveal'); }, 1800);
             
             if (SCREEN_ID && SAVED_CODE) {
+                updateLog("VERIFYING_IDENT");
                 try {
                     const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
                     if (data) {
@@ -117,19 +117,27 @@
         }
 
         async function registerNewDevice() {
+            updateLog("CREATING_SYNC_NODE");
             const code = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Show UI immediately so user has the code
             showPairingUI(code);
+
             try {
-                const { data } = await sbClient.from('screens').insert([
-                    { name: 'Display-Unit', pairing_code: code, is_paired: false }
+                // IMPORTANT: Insert only English metadata to prevent ISO-8859-1 Header errors
+                const { data, error } = await sbClient.from('screens').insert([
+                    { name: 'Display-Node', pairing_code: code, is_paired: false }
                 ]).select();
+
                 if (data && data[0]) {
                     localStorage.setItem('nehas_sid', data[0].id);
                     localStorage.setItem('nehas_code', code);
                     SCREEN_ID = data[0].id;
+                    updateLog("NODE_LOCKED");
                     watchPairing();
                 }
             } catch (err) {
+                updateLog("SYNC_RETRY");
                 setTimeout(registerNewDevice, 5000);
             }
         }
@@ -137,7 +145,7 @@
         function showPairingUI(code) {
             document.getElementById('ui-content').innerHTML = `
                 <div class="code">${code}</div>
-                <p>Link display in dashboard to begin.</p>
+                <p>Link this unit in your dashboard to begin deployment.</p>
             `;
         }
 
@@ -148,17 +156,24 @@
         }
 
         async function startLoop() {
+            updateLog("NODE_ONLINE");
             const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
+            
             if (data?.length > 0) {
                 document.getElementById('bg').style.opacity = "0";
                 document.getElementById('ui-box').style.display = "none";
                 const m = data[0].media;
                 const cont = document.getElementById('media-container');
-                if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()" style="width:100%;height:100%;object-fit:cover;"></video>`;
-                else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
-                else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
+                
+                if(m.media_type==='video') {
+                    cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()" style="width:100%;height:100%;object-fit:cover;"></video>`;
+                } else if(m.media_type==='url') {
+                    cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
+                } else {
+                    cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
+                }
             } else {
-                document.getElementById('ui-content').innerHTML = `<p style="font-size: 1.4rem; color: #3b82f6;">Ready for deployment.</p>`;
+                document.getElementById('ui-content').innerHTML = `<p style="font-size: 1.4rem; color: #3b82f6;">Linked & Awaiting Content.</p>`;
             }
         }
 
