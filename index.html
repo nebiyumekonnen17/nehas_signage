@@ -71,7 +71,6 @@
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        // --- 1. PAIRING LOGIC ---
         async function pairTV() {
             const code = document.getElementById('p-code').value.trim();
             const name = document.getElementById('p-name').value.trim();
@@ -96,7 +95,6 @@
             }
         }
 
-        // --- 2. IMAGE UPLOAD LOGIC ---
         async function uploadImage() {
             const fileInput = document.getElementById('img-file');
             const file = fileInput.files[0];
@@ -110,16 +108,17 @@
             const fileExt = file.name.split('.').pop();
             const fileName = `${Date.now()}_nehas.${fileExt}`;
 
-            // Upload to 'media' bucket
-            const { error: uploadError } = await sbClient.storage.from('media').upload(fileName, file);
+            // Upload to your 'signage-media' bucket
+            const { error: uploadError } = await sbClient.storage.from('signage-media').upload(fileName, file);
 
             if (uploadError) {
                 status.style.color = "#ef4444";
-                return status.innerText = "Upload failed. Did you create the public 'media' bucket?";
+                console.error(uploadError);
+                return status.innerText = "Upload failed. Check console for details.";
             }
 
             // Get Public URL
-            const { data: urlData } = sbClient.storage.from('media').getPublicUrl(fileName);
+            const { data: urlData } = sbClient.storage.from('signage-media').getPublicUrl(fileName);
 
             // Save to Library DB
             const { error: dbError } = await sbClient.from('media').insert([{ file_url: urlData.publicUrl, media_type: 'image' }]);
@@ -131,7 +130,6 @@
             }
         }
 
-        // --- 3. VIDEO LINK LOGIC ---
         async function saveVideo() {
             let url = document.getElementById('vid-url').value.trim();
             const type = document.getElementById('vid-type').value;
@@ -142,7 +140,7 @@
             status.style.color = "#3b82f6"; 
             status.innerText = "Saving format...";
 
-            // Auto-format YouTube links to embeds
+            // Auto-format YouTube links
             if (type === 'url') {
                 if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0&mute=1";
                 if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0&mute=1";
