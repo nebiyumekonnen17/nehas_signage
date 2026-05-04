@@ -12,9 +12,20 @@
         .nav-items a { text-decoration: none; color: #94a3b8; display: block; padding: 15px; border-radius: 10px; transition: 0.3s; margin-bottom: 10px; }
         .nav-items a:hover, .nav-items a.active { background: #3b82f6; color: white; font-weight: bold; }
         .main { flex: 1; padding: 50px; overflow-y: auto; }
-        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 500px; }
-        input, select, button { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
-        button { background: #10b981; color: white; border: none; font-weight: bold; cursor: pointer; }
+        
+        .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .media-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid #e2e8f0; }
+        .media-preview { width: 100%; height: 150px; background: #cbd5e1; object-fit: cover; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b;}
+        .media-actions { padding: 15px; }
+        .media-actions button { width: 100%; padding: 10px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* Assignment Modal */
+        dialog { border: none; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); width: 400px; }
+        dialog::backdrop { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(5px); }
+        .screen-checkbox { display: flex; align-items: center; padding: 10px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px; }
+        .screen-checkbox input { margin-right: 15px; width: 20px; height: 20px; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-buttons button { flex: 1; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -28,64 +39,89 @@
     </div>
 
     <div class="main">
-        <h1 style="color: #1e293b; margin-top: 0;">Media Library</h1>
-        <div class="card">
-            <h3>Push Content to TV</h3>
-            <input type="text" id="m-url" placeholder="File URL (Image or Video)">
-            <select id="m-type">
-                <option value="image">Image</option>
-                <option value="video">Video</option>
-            </select>
-            <select id="target-screen">
-                <option value="">Loading screens...</option>
-            </select>
-            <button onclick="pushMedia()">Deploy to Screen</button>
-            <div id="status" style="margin-top: 15px; text-align: center; font-weight: bold;"></div>
+        <h1 style="color: #1e293b; margin-top: 0;">Stored Library</h1>
+        <div class="media-grid" id="library-grid">
+            <p style="color:#94a3b8;">Loading library...</p>
         </div>
     </div>
+
+    <dialog id="assign-modal">
+        <h2 style="margin-top:0;">Deploy to Screens</h2>
+        <p style="color:#64748b;">Select which TVs should play this media.</p>
+        <div id="screen-checkboxes"></div>
+        <div class="modal-buttons">
+            <button style="background: #e2e8f0; color: #475569;" onclick="closeModal()">Cancel</button>
+            <button style="background: #3b82f6; color: white;" onclick="confirmAssignment()">Deploy Now</button>
+        </div>
+    </dialog>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        async function loadScreens() {
-            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
-            const select = document.getElementById('target-screen');
-            if(data && data.length > 0) {
-                select.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-            } else {
-                select.innerHTML = `<option value="">No paired screens available</option>`;
-            }
-        }
+        let currentMediaId = null;
 
-        async function pushMedia() {
-            const url = document.getElementById('m-url').value.trim();
-            const type = document.getElementById('m-type').value;
-            const screenId = document.getElementById('target-screen').value;
-            const status = document.getElementById('status');
-
-            if(!url || !screenId) return status.innerText = "Fill all fields and select a screen.";
+        async function loadLibrary() {
+            const { data } = await sbClient.from('media').select('*').order('id', { ascending: false });
+            const grid = document.getElementById('library-grid');
             
-            status.style.color = "#3b82f6";
-            status.innerText = "Deploying...";
-
-            // 1. Clear old playlist for this screen (Optional, ensures only 1 item plays for now)
-            await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
-
-            // 2. Add media to library
-            const { data: mediaData } = await sbClient.from('media').insert([{ file_url: url, media_type: type }]).select();
-
-            if (mediaData && mediaData[0]) {
-                // 3. Link media to screen
-                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: mediaData[0].id }]);
-                status.style.color = "#10b981";
-                status.innerText = "Deployed! The TV will reload automatically.";
-                document.getElementById('m-url').value = '';
+            if(data && data.length > 0) {
+                grid.innerHTML = data.map(m => `
+                    <div class="media-card">
+                        ${m.media_type === 'image' ? `<img src="${m.file_url}" class="media-preview">` : 
+                          `<div class="media-preview">${m.media_type.toUpperCase()} LINK</div>`}
+                        <div class="media-actions">
+                            <button onclick="openModal(${m.id})">Assign to Screens</button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                grid.innerHTML = "<p>Your library is empty. Add media via the Dashboard Hub.</p>";
             }
         }
 
-        window.onload = loadScreens;
+        async function openModal(mediaId) {
+            currentMediaId = mediaId;
+            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            const container = document.getElementById('screen-checkboxes');
+            
+            if(data && data.length > 0) {
+                container.innerHTML = data.map(s => `
+                    <label class="screen-checkbox">
+                        <input type="checkbox" value="${s.id}" class="screen-check">
+                        ${s.name}
+                    </label>
+                `).join('');
+            } else {
+                container.innerHTML = "<p style='color:red;'>No paired screens available.</p>";
+            }
+            
+            document.getElementById('assign-modal').showModal();
+        }
+
+        function closeModal() {
+            document.getElementById('assign-modal').close();
+            currentMediaId = null;
+        }
+
+        async function confirmAssignment() {
+            if(!currentMediaId) return;
+            const checkboxes = document.querySelectorAll('.screen-check:checked');
+            if(checkboxes.length === 0) return alert("Select at least one screen.");
+
+            // Loop through selected screens and push the media
+            for (let box of checkboxes) {
+                const screenId = box.value;
+                await sbClient.from('playlist_items').delete().eq('screen_id', screenId); // Clear old
+                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); // Add new
+            }
+
+            closeModal();
+            alert("Success! Content pushed to selected screens.");
+        }
+
+        window.onload = loadLibrary;
     </script>
 </body>
 </html>
