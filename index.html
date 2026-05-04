@@ -3,54 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <title>Nehas Admin | Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; font-family: sans-serif; background: #f1f5f9; padding: 50px; }
-        .card { background: white; padding: 40px; border-radius: 25px; box-shadow: 0 10px 40px rgba(0,0,0,0.05); max-width: 450px; margin: auto; }
-        input, button { width: 100%; padding: 18px; margin-top: 20px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
-        button { background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #2563eb; transform: translateY(-2px); }
-        #status { margin-top: 20px; font-weight: bold; text-align: center; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #f8fafc; display: flex; height: 100vh; }
+        .sidebar { width: 260px; background: #0f172a; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { text-align: center; padding: 30px 0; border-bottom: 1px solid #1e293b; margin: 0; letter-spacing: 2px; color: #3b82f6; }
+        .nav-items { list-style: none; padding: 20px; margin: 0; }
+        .nav-items a { text-decoration: none; color: #94a3b8; display: block; padding: 15px; border-radius: 10px; transition: 0.3s; margin-bottom: 10px; }
+        .nav-items a:hover, .nav-items a.active { background: #3b82f6; color: white; font-weight: bold; }
+        .main { flex: 1; padding: 50px; overflow-y: auto; }
+        h1 { color: #1e293b; margin-top: 0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 30px; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2 style="margin-top:0; color:#1e293b;">Link New Display</h2>
-        <p style="color:#64748b;">Enter the 6-digit code shown on your TV.</p>
-        <input type="text" id="p-code" placeholder="000000" maxlength="6" style="text-align:center; font-size: 28px; font-family: monospace; letter-spacing: 5px;">
-        <input type="text" id="p-name" placeholder="Name (e.g. Office Lobby)">
-        <button onclick="pair()">Pair Device Now</button>
-        <div id="status"></div>
+    <div class="sidebar">
+        <h2>NEHAS ADMIN</h2>
+        <ul class="nav-items">
+            <li><a href="index.html" class="active">Dashboard Hub</a></li>
+            <li><a href="screens.html">Screen Manager</a></li>
+            <li><a href="library.html">Media Library</a></li>
+        </ul>
     </div>
 
-    <script>
-        const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
-        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        const sbClient = supabase.createClient(S_URL, S_KEY);
-
-        async function pair() {
-            const code = document.getElementById('p-code').value.trim();
-            const name = document.getElementById('p-name').value.trim();
-            const status = document.getElementById('status');
-
-            status.innerText = "Searching for device...";
-            
-            const { data: screenRecord } = await sbClient.from('screens').select('*').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
-
-            if (screenRecord) {
-                const { error } = await sbClient.from('screens').update({ 
-                    name: name, is_paired: true, pairing_code: null 
-                }).eq('id', screenRecord.id);
-
-                if(!error) {
-                    status.style.color = "#10b981";
-                    status.innerText = "SUCCESS: TV is now linked!";
-                }
-            } else {
-                status.style.color = "#ef4444";
-                status.innerText = "ERROR: Invalid Code or TV is offline.";
-            }
-        }
-    </script>
+    <div class="main">
+        <h1>Welcome to Nehas Signage</h1>
+        <p style="color: #64748b; font-size: 1.1rem;">Select a tool from the sidebar to manage your displays.</p>
+        
+        <div class="grid">
+            <div class="card" style="border-top: 5px solid #3b82f6;">
+                <h3>Screen Manager</h3>
+                <p style="color: #64748b;">Pair new TVs using 6-digit codes and monitor the status of active displays across your network.</p>
+                <a href="screens.html" style="color: #3b82f6; text-decoration: none; font-weight: bold;">Go to Screens &rarr;</a>
+            </div>
+            <div class="card" style="border-top: 5px solid #10b981;">
+                <h3>Media Library</h3>
+                <p style="color: #64748b;">Upload images and videos, and push them directly to specific screens in real-time.</p>
+                <a href="library.html" style="color: #10b981; text-decoration: none; font-weight: bold;">Go to Library &rarr;</a>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
