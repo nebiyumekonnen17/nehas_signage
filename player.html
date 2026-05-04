@@ -6,25 +6,55 @@
     <title>Nehas Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; font-family: sans-serif; }
-        #media-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
-        img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; position: absolute; }
-        .pair-display { color: white; text-align: center; z-index: 10; font-family: 'Segoe UI', sans-serif; }
-        .code-text { font-size: 110px; font-weight: bold; color: #3b82f6; margin: 30px 0; font-family: monospace; letter-spacing: 10px; }
-        #debug-bar { 
-            position: fixed; bottom: 0; left: 0; width: 100%; 
-            background: rgba(0,0,0,0.8); color: #00ff00; 
-            font-size: 11px; padding: 5px 15px; z-index: 100; 
-            font-family: monospace; display: flex; gap: 20px;
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: black; overflow: hidden; font-family: 'Segoe UI', sans-serif; 
         }
+        
+        #media-container { 
+            width: 100%; height: 100%; 
+            display: flex; align-items: center; justify-content: center; 
+            position: relative; 
+        }
+
+        img, video, iframe { 
+            width: 100%; height: 100%; 
+            border: none; object-fit: contain; 
+            position: absolute; top: 0; left: 0;
+        }
+
+        /* Pairing Display */
+        .pair-display { 
+            color: white; text-align: center; z-index: 10; 
+            animation: fadeIn 0.5s ease;
+        }
+        .code-text { 
+            font-size: 110px; font-weight: bold; color: #3b82f6; 
+            margin: 20px 0; font-family: monospace; letter-spacing: 10px;
+            text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        
+        /* Diagnostic Bar (Bottom) */
+        #diag-bar { 
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: rgba(0,0,0,0.85); color: #00ff00; 
+            font-size: 11px; padding: 6px 15px; z-index: 100; 
+            font-family: monospace; display: flex; gap: 25px;
+            border-top: 1px solid #333;
+        }
+
+        .diag-label { color: #888; margin-right: 5px; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
     <div id="media-container"></div>
-    <div id="debug-bar">
-        <span>STATUS: <span id="log-status">INITIALIZING</span></span>
-        <span>ID: <span id="log-id">...</span></span>
-        <span>ITEMS: <span id="log-count">0</span></span>
+    
+    <div id="diag-bar">
+        <span><span class="diag-label">STATUS:</span> <span id="log-status">INIT</span></span>
+        <span><span class="diag-label">ID:</span> <span id="log-id">...</span></span>
+        <span><span class="diag-label">ITEMS:</span> <span id="log-count">0</span></span>
     </div>
 
     <script>
@@ -37,122 +67,142 @@
         let currentIndex = 0;
         let loopTimer;
 
-        const logStatus = (msg) => document.getElementById('log-status').innerText = msg;
-        const logId = (id) => document.getElementById('log-id').innerText = id;
-        const logCount = (count) => document.getElementById('log-count').innerText = count;
+        const updateDiag = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
+        };
 
         async function boot() {
             if (!SCREEN_ID) {
                 await startPairing();
             } else {
-                logId(SCREEN_ID.substring(0, 8));
-                const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).single();
+                updateDiag('log-id', SCREEN_ID.substring(0,8));
+                const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
+                
                 if (error || !data || !data.is_paired) {
+                    updateDiag('log-status', "UNPAIRED/NOT FOUND");
                     await startPairing();
                 } else {
-                    logStatus("PAIRED: FETCHING...");
-                    runSystem();
+                    updateDiag('log-status', "CONNECTED");
+                    initializePlayer();
                 }
             }
         }
 
         async function startPairing() {
-            logStatus("AWAITING PAIRING");
+            updateDiag('log-status', "AWAITING PAIRING");
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             
-            // CRITICAL FIX: Providing a default name to avoid DB Not-Null constraint violation
+            // Insert with default name to satisfy DB constraints
             const { data, error } = await sbClient.from('screens').insert([{ 
-                name: "New Display Unit", 
+                name: 'Display ' + code.substring(0,3), 
                 pairing_code: code, 
                 is_paired: false 
             }]).select();
             
-            if (error || !data || data.length === 0) { 
-                logStatus("DB ERROR: " + (error?.message || "Insert failed")); 
-                return; 
+            if (error || !data) {
+                updateDiag('log-status', "DB ERROR: " + error?.message);
+                return;
             }
-            
+
             SCREEN_ID = data[0].id;
             localStorage.setItem('nehas_sid', SCREEN_ID);
-            logId(SCREEN_ID.substring(0, 8));
+            updateDiag('log-id', SCREEN_ID.substring(0,8));
             
             document.getElementById('media-container').innerHTML = `
                 <div class="pair-display">
-                    <p style="font-size:24px; opacity:0.8;">NEHAS SIGNAGE</p>
+                    <p style="font-size: 24px; letter-spacing: 2px; opacity: 0.8;">NEHAS SIGNAGE</p>
                     <div class="code-text">${code}</div>
-                    <p style="font-size:18px;">ENTER THIS CODE IN DASHBOARD</p>
+                    <p style="font-size: 18px; opacity: 0.6;">ENTER CODE ON DASHBOARD</p>
                 </div>`;
             
-            sbClient.channel('pair-watch').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, payload => {
-                if (payload.new.is_paired) location.reload();
+            // Realtime listener for the pairing event
+            sbClient.channel('pairing').on('postgres_changes', { 
+                event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
+            }, payload => {
+                if (payload.new.is_paired) {
+                    updateDiag('log-status', "PAIRED!");
+                    location.reload();
+                }
             }).subscribe();
         }
 
-        async function runSystem() {
-            await sync();
-            // Listen for any changes to playlist items for this specific screen
-            sbClient.channel('pl-watch').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items' }, () => {
-                sync();
+        async function initializePlayer() {
+            await syncPlaylist();
+            
+            // Realtime sync for playlist changes
+            sbClient.channel('loop-sync').on('postgres_changes', { 
+                event: '*', schema: 'public', table: 'playlist_items' 
+            }, async () => {
+                updateDiag('log-status', "SYNCING...");
+                await syncPlaylist();
             }).subscribe();
+            
+            // Fallback sync every 30s for browser-sleep scenarios
+            setInterval(syncPlaylist, 30000);
+            
             play();
         }
 
-        async function sync() {
-            // Simplified select to ensure we get results even if schema is partially missing
+        async function syncPlaylist() {
             const { data, error } = await sbClient.from('playlist_items')
                 .select('duration_seconds, media!inner(*)')
-                .eq('screen_id', SCREEN_ID);
+                .eq('screen_id', SCREEN_ID)
+                .order('display_order', { ascending: true });
             
-            if (!error) { 
-                playlist = data || []; 
-                logCount(playlist.length); 
-                logStatus(playlist.length > 0 ? "PLAYING" : "LOOP EMPTY");
+            if (!error) {
+                playlist = data || [];
+                updateDiag('log-count', playlist.length);
+                updateDiag('log-status', playlist.length > 0 ? "PLAYING" : "LOOP EMPTY");
             } else {
-                logStatus("SYNC ERROR");
-                console.error(error);
+                updateDiag('log-status', "SYNC ERROR");
             }
         }
 
         async function play() {
             clearTimeout(loopTimer);
-            const cont = document.getElementById('media-container');
+            const container = document.getElementById('media-container');
             
-            // Pulse heartbeat
+            // Heartbeat update
             await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
-            
+
             if (playlist.length === 0) {
-                cont.innerHTML = `
+                container.innerHTML = `
                     <div style="color:white; text-align:center;">
-                        <h2 style="font-family: 'Segoe UI', sans-serif;">ነሃስ ማስታወቂያ</h2>
-                        <p style="opacity:0.6;">Waiting for media assignment...</p>
+                        <h2 style="font-size: 32px; letter-spacing: 2px;">ነሃስ ማስታወቂያ</h2>
+                        <p style="opacity:0.5;">No items in loop. Assign media from dashboard.</p>
                     </div>`;
                 loopTimer = setTimeout(play, 5000);
                 return;
             }
 
+            if (currentIndex >= playlist.length) currentIndex = 0;
             const item = playlist[currentIndex];
             currentIndex = (currentIndex + 1) % playlist.length;
-            
+
             if (!item.media || !item.media.file_url) {
-                play(); 
+                play();
                 return;
             }
 
             if (item.media.media_type === 'image') {
-                cont.innerHTML = `<img src="${item.media.file_url}" style="width:100%; height:100%; object-fit:contain;">`;
+                container.innerHTML = `<img src="${item.media.file_url}">`;
                 loopTimer = setTimeout(play, (item.duration_seconds || 10) * 1000);
-            } else if (item.media.media_type === 'video') {
-                cont.innerHTML = `<video src="${item.media.file_url}" autoplay muted style="width:100%; height:100%; object-fit:contain;"></video>`;
-                const v = cont.querySelector('video');
+            } 
+            else if (item.media.media_type === 'video') {
+                container.innerHTML = `<video src="${item.media.file_url}" autoplay muted style="background:black;"></video>`;
+                const v = container.querySelector('video');
                 v.onended = play;
-                v.onerror = () => { console.error("Video play error"); play(); };
-            } else {
-                // Handling Web Apps / URL types
-                cont.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay; encrypted-media" style="width:100vw; height:100vh;"></iframe>`;
+                v.onerror = play;
+            } 
+            else if (item.media.media_type === 'url') {
+                // For YouTube and Web Apps
+                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay; encrypted-media; fullscreen" style="background: white;"></iframe>`;
                 loopTimer = setTimeout(play, (item.duration_seconds || 60) * 1000);
             }
         }
-        boot();
+
+        window.onload = boot;
     </script>
 </body>
 </html>
