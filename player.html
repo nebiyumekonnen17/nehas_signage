@@ -2,36 +2,36 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Player | Stable Edition</title>
+    <title>Nehas Player | Stable Sync</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: sans-serif; }
-        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.6); z-index: 1; opacity: 0; transition: opacity 2s ease-in-out; }
+        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.6); z-index: 1; opacity: 1; }
         #media-container { position: relative; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; }
-        .glass-card { background: rgba(15, 23, 42, 0.2); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); padding: 70px 90px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.15); text-align: center; color: white; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5); opacity: 0; transform: translateY(40px); transition: opacity 2s cubic-bezier(0.16, 1, 0.3, 1), transform 2s cubic-bezier(0.16, 1, 0.3, 1); }
-        .glass-card.reveal { opacity: 1; transform: translateY(0); }
+        .glass-card { background: rgba(15, 23, 42, 0.2); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); padding: 60px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.15); text-align: center; color: white; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5); }
         .brand-eng { font-size: 2rem; letter-spacing: 10px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; }
-        .brand-am { font-size: 1.6rem; color: #cbd5e1; margin-bottom: 20px; letter-spacing: 3px; font-weight: 300; }
-        .code { font-size: 8.5rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); letter-spacing: 8px; }
+        .brand-am { font-size: 1.6rem; color: #cbd5e1; margin-bottom: 20px; letter-spacing: 3px; }
+        .code { font-size: 8rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); letter-spacing: 8px; }
     </style>
 </head>
 <body>
     <div id="bg"></div>
-    <div id="media-container"><div class="glass-card" id="ui-box">
-        <div class="brand-eng">NEHAS SIGNAGE</div><div class="brand-am">ነሃስ ማስታወቂያ</div>
-        <div id="ui-content" style="color:#94a3b8; font-size: 1.2rem;">Syncing with Cloud...</div>
-    </div></div>
+    <div id="media-container">
+        <div class="glass-card" id="ui-box">
+            <div class="brand-eng">NEHAS SIGNAGE</div>
+            <div class="brand-am">ነሃስ ማስታወቂያ</div>
+            <div id="ui-content" style="color:#94a3b8;">Verifying Cloud Connection...</div>
+        </div>
+    </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
+        
         let SCREEN_ID = localStorage.getItem('nehas_sid');
 
         async function boot() {
-            document.getElementById('bg').style.opacity = "1";
-            setTimeout(() => document.getElementById('ui-box').classList.add('reveal'), 1000);
-            
             if (SCREEN_ID) {
                 const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
                 if (data) {
@@ -44,9 +44,10 @@
 
         async function register() {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            // We ONLY show the UI AFTER the database confirms save
+            
+            // STRICTLY ENGLISH metadata to avoid Header errors
             const { data, error } = await sbClient.from('screens').insert([
-                { name: 'Display-Node', pairing_code: code, is_paired: false }
+                { name: 'Node-Display', pairing_code: code, is_paired: false }
             ]).select();
 
             if (data && data[0]) {
@@ -55,27 +56,31 @@
                 showPairingUI(code);
                 watch();
             } else {
-                console.error("DB Error:", error);
                 document.getElementById('ui-content').innerText = "Sync Error. Retrying...";
                 setTimeout(register, 3000);
             }
         }
 
         function showPairingUI(code) {
-            document.getElementById('ui-content').innerHTML = `<div class="code">${code}</div><p>Enter this code in your dashboard.</p>`;
+            document.getElementById('ui-content').innerHTML = `
+                <div class="code">${code}</div>
+                <p>Enter this code in your dashboard.</p>
+            `;
         }
 
         function watch() {
-            sbClient.channel('p').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, () => location.reload()).subscribe();
+            sbClient.channel('p').on('postgres_changes', { 
+                event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
+            }, () => location.reload()).subscribe();
         }
 
         async function startLoop() {
             const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
             if (data?.length > 0) {
-                document.getElementById('bg').style.opacity = "0"; document.getElementById('ui-box').style.display = "none";
-                const m = data[0].media; const cont = document.getElementById('media-container');
-                if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()" style="width:100%;height:100%;object-fit:cover;"></video>`;
-                else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
+                document.getElementById('ui-box').style.display = "none";
+                const m = data[0].media;
+                const cont = document.getElementById('media-container');
+                if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted loop style="width:100%;height:100%;object-fit:cover;"></video>`;
                 else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
             } else {
                 document.getElementById('ui-content').innerHTML = `<p style="color:#3b82f6;">Linked & Ready.</p>`;
