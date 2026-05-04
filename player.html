@@ -3,90 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nehas Signage TV | ነሃስ ማስታወቂያ</title>
+    <title>Nehas Admin | Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; }
-        #media-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; }
-        .pair-code { color: white; font-size: 80px; font-family: monospace; text-align: center; }
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; height: 100vh; display: flex; }
+        .sidebar { width: 250px; background-color: #1e293b; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { text-align: center; padding: 20px 0; border-bottom: 1px solid #334155; margin: 0; }
+        .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-weight: normal; }
+        .nav-items { list-style: none; padding: 0; margin: 0; }
+        .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; }
+        .nav-items li:hover, .nav-items li.active { background-color: #3b82f6; }
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #3b82f6; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #475569; font-size: 14px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #3b82f6; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; }
+        button:disabled { background-color: #94a3b8; }
+        .status-msg { margin-top: 10px; text-align: center; font-weight: bold; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-    <div id="media-container"></div>
+    <div class="sidebar">
+        <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
+        <ul class="nav-items">
+            <li class="active" onclick="location.href='index.html'">Dashboard</li>
+            <li onclick="location.href='screens.html'">Screens Manager</li>
+            <li onclick="location.href='library.html'">Media Library</li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <h1>Control Dashboard</h1>
+        <div class="grid-container">
+            
+            <div class="card">
+                <h3>📤 Upload Media</h3>
+                <div class="form-group">
+                    <label>Target Screen</label>
+                    <select id="screen-select"></select>
+                </div>
+                <div class="form-group">
+                    <label>File (Image/Video)</label>
+                    <input type="file" id="media-file" accept="image/*,video/mp4">
+                </div>
+                <div class="form-group">
+                    <label>Duration (Seconds)</label>
+                    <input type="number" id="duration" value="10">
+                </div>
+                <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Deploy</button>
+                <div id="deploy-status" class="status-msg"></div>
+            </div>
+
+            <div class="card" style="border-top-color: #8b5cf6;">
+                <h3>🧩 Apps Marketplace</h3>
+                <div class="form-group">
+                    <label>App Type</label>
+                    <select id="app-type" onchange="updateAppHint()">
+                        <option value="insta">Instagram/Facebook Feed</option>
+                        <option value="reviews">Google Reviews</option>
+                        <option value="sports">Live Sports Scores</option>
+                        <option value="news">RSS News Ticker</option>
+                        <option value="menu">Digital Menu Board</option>
+                        <option value="slides">Google Slides</option>
+                        <option value="youtube">YouTube Embed</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>App/Widget URL</label>
+                    <input type="text" id="app-url-input" placeholder="Paste the link here...">
+                    <small id="app-hint" style="color:#64748b;">Use Behold.so for Social Feeds.</small>
+                </div>
+                <div class="form-group">
+                    <label>Target Screen</label>
+                    <select id="app-screen-select"></select>
+                </div>
+                <div class="form-group">
+                    <label>Duration (Seconds)</label>
+                    <input type="number" id="app-duration" value="60">
+                </div>
+                <button onclick="deployApp()" style="background:#8b5cf6;">Deploy App</button>
+            </div>
+
+            <div class="card" style="border-top-color: #10b981;">
+                <h3>📺 Pair New TV</h3>
+                <div class="form-group">
+                    <label>6-Digit Code from TV</label>
+                    <input type="text" id="pair-code" placeholder="000000">
+                </div>
+                <div class="form-group">
+                    <label>Screen Name</label>
+                    <input type="text" id="pair-name" placeholder="E.g. Main Lobby">
+                </div>
+                <button onclick="pairScreen()" style="background:#10b981;">Complete Pairing</button>
+                <div id="pair-status" class="status-msg"></div>
+            </div>
+
+        </div>
+    </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        const sbClient = window.supabase.createClient(S_URL, S_KEY);
+        const CLOUD_NAME = 'dfgfiope9';
+        const UPLOAD_PRESET = 'nehas_unsigned'; 
+        
+        const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        let SCREEN_ID = localStorage.getItem('nehas_sid');
-        let playlist = [];
-        let currentIndex = 0;
-        let loopTimer;
+        window.onload = loadScreens;
 
-        async function boot() {
-            if (!SCREEN_ID) showPairing();
-            else {
-                const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).single();
-                if (!data || !data.is_paired) showPairing();
-                else start();
-            }
+        async function loadScreens() {
+            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
+            const selects = [document.getElementById('screen-select'), document.getElementById('app-screen-select')];
+            selects.forEach(sel => {
+                if (data?.length) sel.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+                else sel.innerHTML = '<option value="">No screens paired</option>';
+            });
         }
 
-        async function showPairing() {
-            const code = Math.floor(100000 + Math.random() * 900000).toString();
-            const { data } = await sbClient.from('screens').insert([{ pairing_code: code, is_paired: false }]).select();
-            SCREEN_ID = data[0].id;
-            localStorage.setItem('nehas_sid', SCREEN_ID);
-            document.getElementById('media-container').innerHTML = `<div class="pair-code"><p style="font-size:24px;">Pairing Code:</p>${code}</div>`;
-            
-            sbClient.channel('pairing').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, payload => {
-                if (payload.new.is_paired) location.reload();
-            }).subscribe();
+        function updateAppHint() {
+            const type = document.getElementById('app-type').value;
+            const hints = {
+                insta: "Use Behold.so or Walls.io links.",
+                reviews: "Use Elfsight or Trustindex URLs.",
+                sports: "Use Scorestream widget URLs.",
+                news: "Use RSS.app for tickers.",
+                menu: "Use Canva 'Embed' URLs.",
+                slides: "Use Google Slides 'Publish to Web' URLs.",
+                youtube: "Use the 'Embed' format URL."
+            };
+            document.getElementById('app-hint').innerText = hints[type];
         }
 
-        async function start() {
-            syncPlaylist();
-            sbClient.channel('pl').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items', filter: `screen_id=eq.${SCREEN_ID}` }, syncPlaylist).subscribe();
-            play();
+        async function uploadAndDeploy() {
+            const sid = document.getElementById('screen-select').value;
+            const file = document.getElementById('media-file').files[0];
+            const dur = document.getElementById('duration').value;
+            if(!sid || !file) return alert("Select screen and file!");
+
+            const btn = document.getElementById('deploy-btn');
+            const status = document.getElementById('deploy-status');
+            btn.disabled = true; status.textContent = "Uploading to Cloud...";
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', UPLOAD_PRESET);
+
+            try {
+                const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`, { method: 'POST', body: formData }).then(r => r.json());
+                
+                const { data: mData } = await sbClient.from('media').insert([{ 
+                    file_name: file.name, file_url: cloudRes.secure_url, media_type: cloudRes.resource_type 
+                }]).select();
+
+                await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, duration_seconds: dur }]);
+                status.textContent = "Successfully Deployed!";
+                setTimeout(() => status.textContent = "", 3000);
+            } catch (e) { status.textContent = "Upload failed."; }
+            finally { btn.disabled = false; }
         }
 
-        async function syncPlaylist() {
-            const { data } = await sbClient.from('playlist_items').select(`duration_seconds, media ( file_url, media_type )`).eq('screen_id', SCREEN_ID).order('display_order');
-            playlist = data || [];
+        async function deployApp() {
+            const sid = document.getElementById('app-screen-select').value;
+            const typeName = document.getElementById('app-type').options[document.getElementById('app-type').selectedIndex].text;
+            let url = document.getElementById('app-url-input').value;
+            const dur = document.getElementById('app-duration').value;
+
+            if(!sid || !url) return alert("Fill all fields.");
+            if(url.includes("watch?v=")) url = url.replace("watch?v=", "embed/") + "?autoplay=1&mute=1";
+
+            const { data: mData } = await sbClient.from('media').insert([{ 
+                file_name: `App: ${typeName}`, file_url: url, media_type: 'url' 
+            }]).select();
+
+            await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, duration_seconds: dur }]);
+            alert("App deployed!");
         }
 
-        async function play() {
-            clearTimeout(loopTimer);
-            const container = document.getElementById('media-container');
-            
-            // Heartbeat
-            await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
-
-            if (playlist.length === 0) {
-                container.innerHTML = `<div style="color:white; font-size:30px;">ነሃስ ማስታወቂያ<br>Ready to play.</div>`;
-                setTimeout(play, 5000);
-                return;
-            }
-
-            const item = playlist[currentIndex];
-            currentIndex = (currentIndex + 1) % playlist.length;
-
-            if (item.media.media_type === 'image') {
-                container.innerHTML = `<img src="${item.media.file_url}">`;
-                loopTimer = setTimeout(play, item.duration_seconds * 1000);
-            } else if (item.media.media_type === 'video') {
-                container.innerHTML = `<video src="${item.media.file_url}" autoplay muted></video>`;
-                container.querySelector('video').onended = play;
-            } else {
-                // RENDER APPS / URLS
-                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay"></iframe>`;
-                loopTimer = setTimeout(play, item.duration_seconds * 1000);
-            }
+        async function pairScreen() {
+            const c = document.getElementById('pair-code').value;
+            const n = document.getElementById('pair-name').value;
+            const { data } = await sbClient.from('screens').select('id').eq('pairing_code', c).eq('is_paired', false);
+            if(data?.length) {
+                await sbClient.from('screens').update({ name: n, is_paired: true, pairing_code: null }).eq('id', data[0].id);
+                document.getElementById('pair-status').textContent = "Success!";
+                loadScreens();
+            } else { document.getElementById('pair-status').textContent = "Code not found."; }
         }
-
-        boot();
     </script>
 </body>
 </html>
