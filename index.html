@@ -2,22 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Admin</title>
+    <title>Nehas Admin | Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; background: #f8fafc; padding: 50px; }
-        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); max-width: 400px; margin: auto; }
-        input, button { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; box-sizing: border-box; }
-        button { background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; }
+        body { margin: 0; font-family: sans-serif; background: #f1f5f9; padding: 50px; }
+        .card { background: white; padding: 40px; border-radius: 25px; box-shadow: 0 10px 40px rgba(0,0,0,0.05); max-width: 450px; margin: auto; }
+        input, button { width: 100%; padding: 18px; margin-top: 20px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
+        button { background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #2563eb; transform: translateY(-2px); }
+        #status { margin-top: 20px; font-weight: bold; text-align: center; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>Link New Display</h2>
-        <input type="text" id="p-code" placeholder="6-digit Code" maxlength="6">
-        <input type="text" id="p-name" placeholder="Display Name (e.g. Lobby)">
-        <button onclick="pair()">Link TV Now</button>
-        <p id="status" style="text-align:center;"></p>
+        <h2 style="margin-top:0; color:#1e293b;">Link New Display</h2>
+        <p style="color:#64748b;">Enter the 6-digit code shown on your TV.</p>
+        <input type="text" id="p-code" placeholder="000000" maxlength="6" style="text-align:center; font-size: 28px; font-family: monospace; letter-spacing: 5px;">
+        <input type="text" id="p-name" placeholder="Name (e.g. Office Lobby)">
+        <button onclick="pair()">Pair Device Now</button>
+        <div id="status"></div>
     </div>
 
     <script>
@@ -30,15 +33,22 @@
             const name = document.getElementById('p-name').value.trim();
             const status = document.getElementById('status');
 
-            const { data } = await sbClient.from('screens').select('*').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
+            status.innerText = "Searching for device...";
+            
+            const { data: screenRecord } = await sbClient.from('screens').select('*').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
 
-            if (data) {
-                await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
-                status.innerText = "Success! TV Linked.";
-                status.style.color = "green";
+            if (screenRecord) {
+                const { error } = await sbClient.from('screens').update({ 
+                    name: name, is_paired: true, pairing_code: null 
+                }).eq('id', screenRecord.id);
+
+                if(!error) {
+                    status.style.color = "#10b981";
+                    status.innerText = "SUCCESS: TV is now linked!";
+                }
             } else {
-                status.innerText = "Invalid Code. Make sure the TV is on.";
-                status.style.color = "red";
+                status.style.color = "#ef4444";
+                status.innerText = "ERROR: Invalid Code or TV is offline.";
             }
         }
     </script>
