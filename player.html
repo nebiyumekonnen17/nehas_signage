@@ -2,17 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Player | Crystal Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nehas Player | True Glass Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: 'Inter', sans-serif; }
         
+        /* High-End Background */
         #bg { 
             position: fixed; 
             width: 100%; 
             height: 100%; 
             background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; 
-            filter: brightness(0.6); /* Brighter to ensure colors bleed through the 80px blur */
+            filter: brightness(0.6); 
             z-index: 1; 
             opacity: 0; 
             transition: opacity 2s ease-in-out; 
@@ -28,16 +30,23 @@
             justify-content: center; 
         }
 
+        /* True Glassmorphism Card */
         .glass-card { 
-            background: rgba(15, 23, 42, 0.35); /* Slightly lighter to allow more light dispersion */
-            backdrop-filter: blur(80px); /* Max Blur at 80px */
-            -webkit-backdrop-filter: blur(80px);
+            /* Lower alpha (0.2) makes it truly see-through */
+            background: rgba(15, 23, 42, 0.2); 
+            /* 40px is the "sweet spot" for seeing shapes behind the glass */
+            backdrop-filter: blur(40px); 
+            -webkit-backdrop-filter: blur(40px);
+            
             padding: 70px 90px; 
             border-radius: 50px; 
-            border: 1px solid rgba(59, 130, 246, 0.35); 
+            /* Subtle white border makes the edge look like real glass */
+            border: 1px solid rgba(255, 255, 255, 0.15); 
+            
             text-align: center; 
             color: white; 
-            box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7);
+            box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5);
+            
             opacity: 0; 
             transform: translateY(40px);
             transition: opacity 2s cubic-bezier(0.16, 1, 0.3, 1), transform 2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -48,18 +57,31 @@
             transform: translateY(0);
         }
 
-        .brand-am { font-size: 1.6rem; color: #cbd5e1; margin: 15px 0; letter-spacing: 3px; font-weight: 300; }
-        .code { font-size: 8.5rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); letter-spacing: 8px; }
-        #log { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.5; }
+        .brand-eng { font-size: 2rem; letter-spacing: 10px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; }
+        .brand-am { font-size: 1.6rem; color: #cbd5e1; margin-bottom: 20px; letter-spacing: 3px; font-weight: 300; }
+        
+        .code { 
+            font-size: 8.5rem; 
+            font-weight: 900; 
+            margin: 20px 0; 
+            font-family: 'Monaco', monospace; 
+            color: #fff; 
+            text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); 
+            letter-spacing: 8px; 
+        }
+
+        .instruction { font-size: 1.2rem; color: #94a3b8; opacity: 0.8; }
+
+        #log { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.5; letter-spacing: 1px; }
     </style>
 </head>
 <body>
     <div id="bg"></div>
     <div id="media-container">
         <div class="glass-card" id="ui-box">
-            <h2 id="ui-header" style="letter-spacing:10px; color:#3b82f6; margin-bottom: 5px; font-weight: 900; font-size: 2rem;">NEHAS SIGNAGE</h2>
+            <div class="brand-eng">NEHAS SIGNAGE</div>
             <div class="brand-am">ነሃስ ማስታወቂያ</div>
-            <div id="ui-content" style="font-size: 1.2rem; opacity: 0.7; margin-top: 10px;">Initializing...</div>
+            <div id="ui-content" class="instruction">Initializing System...</div>
         </div>
     </div>
     <div id="log">OS_STATUS: <span id="status-text">BOOTING</span></div>
@@ -68,7 +90,7 @@
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
-
+        
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         let SAVED_CODE = localStorage.getItem('nehas_code');
 
@@ -76,6 +98,7 @@
             const bg = document.getElementById('bg');
             const ui = document.getElementById('ui-box');
 
+            // Visual Reveal Sequence
             setTimeout(() => { bg.style.opacity = "1"; }, 400);
             setTimeout(() => { ui.classList.add('reveal'); }, 1800);
             
@@ -114,7 +137,7 @@
         function showPairingUI(code) {
             document.getElementById('ui-content').innerHTML = `
                 <div class="code">${code}</div>
-                <p style="opacity: 0.9; font-size: 1.2rem;">Link display in dashboard to begin.</p>
+                <p>Link display in dashboard to begin.</p>
             `;
         }
 
