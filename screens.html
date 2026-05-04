@@ -12,11 +12,12 @@
         .nav-items a { text-decoration: none; color: #94a3b8; display: block; padding: 15px; border-radius: 10px; transition: 0.3s; margin-bottom: 10px; }
         .nav-items a:hover, .nav-items a.active { background: #3b82f6; color: white; font-weight: bold; }
         .main { flex: 1; padding: 50px; overflow-y: auto; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
         .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        input, button { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
-        button { background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .screen-item { padding: 15px; background: #f1f5f9; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .screen-item { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #f1f5f9; border-radius: 12px; margin-bottom: 15px; }
+        .screen-info h3 { margin: 0 0 5px 0; color: #1e293b; }
+        .screen-actions button { padding: 8px 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-left: 10px; }
+        .btn-edit { background: #e2e8f0; color: #475569; }
+        .btn-del { background: #fee2e2; color: #ef4444; }
     </style>
 </head>
 <body>
@@ -30,19 +31,9 @@
     </div>
 
     <div class="main">
-        <h1 style="color: #1e293b; margin-top: 0;">Screen Manager</h1>
-        <div class="grid">
-            <div class="card">
-                <h3>Pair New TV</h3>
-                <input type="text" id="p-code" placeholder="Enter 6-Digit Code" maxlength="6" style="font-family: monospace; font-size: 24px; text-align: center; letter-spacing: 5px;">
-                <input type="text" id="p-name" placeholder="Display Name (e.g. Main Lobby)">
-                <button onclick="pairTV()">Link Device</button>
-                <div id="status" style="margin-top: 15px; text-align: center; font-weight: bold;"></div>
-            </div>
-            <div class="card">
-                <h3>Active Screens</h3>
-                <div id="screen-list"><p style="color:#94a3b8;">Loading...</p></div>
-            </div>
+        <h1 style="color: #1e293b; margin-top: 0;">Active Displays</h1>
+        <div class="card" id="screen-list">
+            <p style="color:#94a3b8;">Loading displays...</p>
         </div>
     </div>
 
@@ -54,40 +45,38 @@
         async function loadScreens() {
             const { data } = await sbClient.from('screens').select('*').eq('is_paired', true);
             const list = document.getElementById('screen-list');
+            
             if(data && data.length > 0) {
                 list.innerHTML = data.map(s => `
                     <div class="screen-item">
-                        <strong>${s.name}</strong>
-                        <span style="color:#10b981; font-size:12px; font-weight:bold;">● ONLINE</span>
+                        <div class="screen-info">
+                            <h3>${s.name}</h3>
+                            <span style="color:#10b981; font-size:12px; font-weight:bold;">● ONLINE SYSTEM ID: ${s.id}</span>
+                        </div>
+                        <div class="screen-actions">
+                            <button class="btn-edit" onclick="renameScreen(${s.id}, '${s.name}')">Rename</button>
+                            <button class="btn-del" onclick="deleteScreen(${s.id})">Delete</button>
+                        </div>
                     </div>
                 `).join('');
             } else {
-                list.innerHTML = "<p style='color:#94a3b8;'>No screens paired yet.</p>";
+                list.innerHTML = "<p style='color:#94a3b8;'>No screens are currently paired.</p>";
             }
         }
 
-        async function pairTV() {
-            const code = document.getElementById('p-code').value.trim();
-            const name = document.getElementById('p-name').value.trim();
-            const status = document.getElementById('status');
-
-            if(!code || !name) return status.innerText = "Please fill all fields.";
-            
-            status.style.color = "#3b82f6";
-            status.innerText = "Searching...";
-
-            const { data } = await sbClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
-
-            if (data) {
-                await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
-                status.style.color = "#10b981";
-                status.innerText = "Success! TV Linked.";
-                document.getElementById('p-code').value = '';
-                document.getElementById('p-name').value = '';
+        async function renameScreen(id, oldName) {
+            const newName = prompt("Enter new name for this display:", oldName);
+            if (newName && newName.trim() !== "") {
+                await sbClient.from('screens').update({ name: newName }).eq('id', id);
                 loadScreens();
-            } else {
-                status.style.color = "#ef4444";
-                status.innerText = "Invalid Code.";
+            }
+        }
+
+        async function deleteScreen(id) {
+            if (confirm("Are you sure you want to delete this TV? It will need to be re-paired.")) {
+                await sbClient.from('playlist_items').delete().eq('screen_id', id);
+                await sbClient.from('screens').delete().eq('id', id);
+                loadScreens();
             }
         }
 
