@@ -8,19 +8,28 @@
     <style>
         :root { --primary: #3b82f6; --purple: #8b5cf6; --green: #10b981; --dark: #1e293b; --bg: #f4f6f8; --text: #334155; }
         body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); height: 100vh; display: flex; overflow: hidden; color: var(--text); }
+        
+        /* Sidebar */
         .sidebar { width: 250px; background: var(--dark); color: white; display: flex; flex-direction: column; flex-shrink: 0; }
         .sidebar h2 { text-align: center; padding: 25px 0; border-bottom: 1px solid #334155; margin: 0; font-size: 1.1rem; }
         .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+        
         .nav-items { list-style: none; padding: 0; margin: 0; }
         .nav-items li { padding: 15px 20px; border-bottom: 1px solid #334155; cursor: pointer; transition: 0.2s; font-size: 14px; }
         .nav-items li.active { background: var(--primary); font-weight: bold; }
+        
+        /* Layout */
         .main-content { flex: 1; padding: 30px; overflow-y: auto; }
         .view-section { display: none; }
         .view-section.active { display: block; }
+
+        /* Grid & Cards */
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
         .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 5px solid var(--primary); }
+        
         input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; margin-top: 8px; }
         button { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 15px; }
+        button:hover { opacity: 0.9; }
         .status-msg { margin-top: 12px; text-align: center; font-size: 13px; font-weight: bold; min-height: 1.2em; }
     </style>
 </head>
@@ -36,14 +45,16 @@
 
     <div class="main-content">
         <div id="view-dash" class="view-section active">
+            <h1>Control Dashboard</h1>
             <div class="grid">
                 <div class="card" style="border-top-color: var(--green);">
                     <h3>📺 Link New TV</h3>
                     <input type="text" id="pair-code" placeholder="Enter 6-digit code">
-                    <input type="text" id="pair-name" placeholder="TV Name (e.g. Front Desk)">
+                    <input type="text" id="pair-name" placeholder="Display Name (e.g. Lobby)">
                     <button onclick="pairScreen()" style="background:var(--green)">Link Display</button>
                     <div id="pair-status" class="status-msg"></div>
                 </div>
+
                 <div class="card" style="border-top-color: var(--purple);">
                     <h3>🧩 Deploy App</h3>
                     <select class="screen-selector" id="app-sid"></select>
@@ -51,10 +62,26 @@
                     <button onclick="deployApp()" style="background:var(--purple)">Deploy to Screen</button>
                     <div id="app-status" class="status-msg"></div>
                 </div>
+
+                <div class="card">
+                    <h3>📤 Upload Media</h3>
+                    <select class="screen-selector" id="up-sid"></select>
+                    <input type="file" id="up-file">
+                    <button onclick="uploadMedia()">Upload & Publish</button>
+                    <div id="up-status" class="status-msg"></div>
+                </div>
             </div>
         </div>
-        <div id="view-lib" class="view-section"><div id="lib-container" class="grid"></div></div>
-        <div id="view-screens" class="view-section"><div id="screens-container" class="grid"></div></div>
+
+        <div id="view-screens" class="view-section">
+            <h1>Screens Manager</h1>
+            <div id="screens-container" class="grid"></div>
+        </div>
+
+        <div id="view-lib" class="view-section">
+            <h1>Media Library</h1>
+            <div id="lib-container" class="grid"></div>
+        </div>
     </div>
 
     <script>
@@ -67,15 +94,16 @@
             document.querySelectorAll('.nav-items li').forEach(l => l.classList.remove('active'));
             document.getElementById('view-'+name).classList.add('active');
             document.getElementById('nav-'+name).classList.add('active');
+            
             if(name === 'dash') loadSelectors();
-            if(name === 'lib') loadLibrary();
             if(name === 'screens') loadScreens();
+            if(name === 'lib') loadLibrary();
         }
 
         async function loadSelectors() {
             const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
             document.querySelectorAll('.screen-selector').forEach(sel => {
-                sel.innerHTML = data?.map(s => `<option value="${s.id}">${s.name}</option>`).join('') || '<option value="">No screens</option>';
+                sel.innerHTML = data?.map(s => `<option value="${s.id}">${s.name}</option>`).join('') || '<option value="">No paired screens</option>';
             });
         }
 
@@ -83,21 +111,57 @@
             const code = document.getElementById('pair-code').value.trim();
             const name = document.getElementById('pair-name').value.trim();
             const status = document.getElementById('pair-status');
-            
+            if(!code || !name) return alert("Please enter both code and name.");
+
             status.style.color = "blue";
-            status.textContent = "Verifying...";
+            status.textContent = "Verifying code...";
 
             const { data, error } = await sbClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
             
             if (data) {
                 await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
                 status.style.color = "green";
-                status.textContent = "✅ Paired!";
+                status.textContent = "✅ Paired Successfully!";
                 loadSelectors();
             } else {
                 status.style.color = "red";
                 status.textContent = "❌ Code not found.";
             }
+        }
+
+        async function loadScreens() {
+            const cont = document.getElementById('screens-container');
+            const { data } = await sbClient.from('screens').select('*').eq('is_paired', true);
+            cont.innerHTML = data?.map(s => `
+                <div class="card" style="border-top-color: ${ (new Date() - new Date(s.last_seen)) / 1000 < 60 ? 'var(--green)' : '#cbd5e1' }">
+                    <h3>${s.name}</h3>
+                    <p style="font-size:12px;">Status: ${ (new Date() - new Date(s.last_seen)) / 1000 < 60 ? 'Online' : 'Offline' }</p>
+                    <button onclick="unpairScreen('${s.id}')" style="background:red; font-size:11px;">Unpair</button>
+                </div>
+            `).join('') || "No screens found.";
+        }
+
+        async function loadLibrary() {
+            const cont = document.getElementById('lib-container');
+            cont.innerHTML = "Syncing library...";
+            const { data: media } = await sbClient.from('media').select('*').order('created_at', {ascending: false});
+            const { data: screens } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            
+            cont.innerHTML = media?.map(m => {
+                const opts = screens?.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+                return `<div class="card">
+                    <div style="font-size:30px; text-align:center;">${m.media_type === 'url' ? '🔗' : '🖼️'}</div>
+                    <b style="display:block; margin:10px 0;">${m.file_name}</b>
+                    <select id="sel-${m.id}">${opts}</select>
+                    <button onclick="deployFromLib('${m.id}')">Add to Screen</button>
+                </div>`;
+            }).join('') || "Library is empty.";
+        }
+
+        async function deployFromLib(mid) {
+            const sid = document.getElementById('sel-'+mid).value;
+            await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mid, duration_seconds: 60 }]);
+            alert("Added to playlist!");
         }
 
         window.onload = loadSelectors;
