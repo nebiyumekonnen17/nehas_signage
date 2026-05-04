@@ -6,32 +6,19 @@
     <title>Nehas Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --bg-image: url('https://output.googleusercontent.com/image_generation_content/0/generated_image.webp');
-        }
-
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
-            background-color: #05070a; overflow: hidden; 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background: radial-gradient(circle at center, #0a192f 0%, #020617 100%);
+            overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; 
         }
 
-        /* 1. FIXED BACKGROUND IMAGE */
-        #bg-layer {
+        /* Interactive Cyber Background */
+        #canvas-bg {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-image) no-repeat center center;
-            background-size: cover;
             z-index: 1;
-            filter: brightness(0.5);
-            transition: opacity 1.5s ease;
         }
 
-        /* 2. INTERACTIVE CANVAS */
-        #particle-canvas {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2;
-        }
-
+        /* Floating Content Layer */
         #media-container {
             position: relative; width: 100%; height: 100%; z-index: 5;
             display: flex; align-items: center; justify-content: center;
@@ -39,44 +26,43 @@
 
         img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; position: absolute; }
 
-        /* 3. FLOATING GLASS CARD */
+        /* Premium Glass Card */
         .glass-card {
             z-index: 10;
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
             padding: 60px 80px;
             border-radius: 40px;
             border: 1px solid rgba(255, 255, 255, 0.1);
             text-align: center;
             color: white;
-            box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
-            transition: transform 0.2s ease-out; /* For mouse reaction */
+            box-shadow: 0 0 80px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(59, 130, 246, 0.1);
             animation: float 6s ease-in-out infinite;
+            transition: transform 0.1s ease-out;
         }
 
-        .brand-eng { font-size: 1.6rem; letter-spacing: 6px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; text-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
-        .brand-am { font-size: 1.3rem; color: #94a3b8; margin-bottom: 30px; font-weight: 300; }
-        .pairing-code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: 'Courier New', monospace; color: #fff; text-shadow: 0 0 40px rgba(59, 130, 246, 0.9); }
-        .instruction { font-size: 1.1rem; color: #cbd5e1; max-width: 450px; opacity: 0.8; }
+        .brand-eng { font-size: 1.8rem; letter-spacing: 8px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; text-transform: uppercase; }
+        .brand-am { font-size: 1.4rem; color: #94a3b8; margin-bottom: 40px; font-weight: 300; }
+        .pairing-code { font-size: 8rem; font-weight: 900; margin: 20px 0; font-family: 'Courier New', monospace; color: #fff; text-shadow: 0 0 30px rgba(59, 130, 246, 0.8); }
+        .instruction { font-size: 1.2rem; color: #cbd5e1; max-width: 450px; line-height: 1.6; opacity: 0.8; }
 
         @keyframes float {
             0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-25px) rotate(1deg); }
+            50% { transform: translateY(-20px) rotate(0.5deg); }
         }
 
-        #diag { position: fixed; bottom: 15px; left: 20px; font-size: 10px; color: rgba(59, 130, 246, 0.6); z-index: 100; font-family: monospace; letter-spacing: 1px; }
+        #diag { position: fixed; bottom: 10px; left: 15px; font-size: 10px; color: rgba(59, 130, 246, 0.4); z-index: 100; font-family: monospace; }
     </style>
 </head>
 <body>
 
-    <div id="bg-layer"></div>
-    <canvas id="particle-canvas"></canvas>
+    <canvas id="canvas-bg"></canvas>
     
     <div id="media-container">
         </div>
 
-    <div id="diag">NEHAS_SYSTEM_ACTIVE // <span id="log-status">CONNECTING</span></div>
+    <div id="diag">NEHAS_OS // <span id="log-status">SYSTEM_BOOT</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
@@ -86,13 +72,13 @@
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         let playlist = [];
         let currentIndex = 0;
-        let mouse = { x: null, y: null };
 
-        // --- Interactive Particles & Mouse Tracking ---
-        const canvas = document.getElementById('particle-canvas');
+        // --- 1. INTERACTIVE NEBULA BACKGROUND ---
+        const canvas = document.getElementById('canvas-bg');
         const ctx = canvas.getContext('2d');
         let particles = [];
-        
+        let mouse = { x: null, y: null };
+
         window.onmousemove = (e) => { mouse.x = e.x; mouse.y = e.y; };
         function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
         window.onresize = resize; resize();
@@ -102,80 +88,65 @@
             reset() {
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
-                this.vx = (Math.random() - 0.5) * 0.5;
-                this.vy = (Math.random() - 0.5) * 0.5;
-                this.size = Math.random() * 3;
+                this.vx = (Math.random() - 0.5) * 0.3;
+                this.vy = (Math.random() - 0.5) * 0.3;
+                this.size = Math.random() * 2;
             }
             update() {
                 this.x += this.vx; this.y += this.vy;
-                
-                // Particle reacts to mouse
-                if (mouse.x != null) {
+                if (mouse.x) {
                     let dx = mouse.x - this.x;
                     let dy = mouse.y - this.y;
                     let dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist < 150) {
-                        this.x -= dx/20;
-                        this.y -= dy/20;
-                    }
+                    if (dist < 200) { this.x -= dx/50; this.y -= dy/50; }
                 }
-
                 if(this.x<0||this.x>canvas.width||this.y<0||this.y>canvas.height) this.reset();
             }
             draw() {
-                ctx.fillStyle = "rgba(59, 130, 246, 0.5)";
+                ctx.fillStyle = "rgba(59, 130, 246, 0.3)";
                 ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
             }
         }
-        
-        for(let i=0; i<100; i++) particles.push(new Particle());
-        
+        for(let i=0; i<120; i++) particles.push(new Particle());
+
         function animate() {
-            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = "rgba(2, 6, 23, 0.2)"; // Deep trail effect
+            ctx.fillRect(0,0,canvas.width,canvas.height);
             particles.forEach(p => { p.update(); p.draw(); });
-            
-            // Subtle "Magnetic" card effect
-            const card = document.querySelector('.glass-card');
-            if (card && mouse.x) {
-                let cx = window.innerWidth/2;
-                let cy = window.innerHeight/2;
-                let rx = (mouse.x - cx) / 50;
-                let ry = (mouse.y - cy) / 50;
-                card.style.transform = `translate(${rx}px, ${ry}px)`;
-            }
             requestAnimationFrame(animate);
         }
         animate();
 
-        // --- System Core ---
+        // --- 2. SYSTEM LOGIC ---
         async function boot() {
             if (!SCREEN_ID) {
-                await generatePairing();
+                await startNewPairing();
             } else {
                 const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
                 if (error || !data || !data.is_paired) {
-                    await generatePairing();
+                    await startNewPairing();
                 } else {
                     initPlayer();
                 }
             }
         }
 
-        async function generatePairing() {
+        async function startNewPairing() {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            document.getElementById('log-status').innerText = "GENERATING_ID";
+            document.getElementById('log-status').innerText = "AWAITING_LINK";
             
-            // Instant UI Update
+            // SHOW THE CODE IMMEDIATELY
             document.getElementById('media-container').innerHTML = `
                 <div class="glass-card">
                     <div class="brand-eng">NEHAS SIGNAGE</div>
                     <div class="brand-am">ነሃስ ማስታወቂያ</div>
                     <div class="pairing-code">${code}</div>
-                    <div class="instruction">Enter this 6-digit code in your dashboard to link this display.</div>
+                    <div class="instruction">Enter this code in your dashboard to link this display and start casting.</div>
                 </div>
             `;
 
             try {
+                // Using English name for initial insert to avoid the Amharic Header Error
                 const { data, error } = await sbClient.from('screens').insert([
                     { name: 'Nehas Display Unit', pairing_code: code, is_paired: false }
                 ]).select();
@@ -184,22 +155,20 @@
                 SCREEN_ID = data[0].id;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
 
-                // Watch for pairing success
                 sbClient.channel('p').on('postgres_changes', { 
                     event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
                 }, () => location.reload()).subscribe();
 
             } catch (err) {
-                document.getElementById('log-status').innerText = "DB_SYNC_FAIL";
+                document.getElementById('log-status').innerText = "SYNC_ERROR";
             }
         }
 
         async function initPlayer() {
-            document.getElementById('log-status').innerText = "SYSTEM_LIVE";
+            document.getElementById('log-status').innerText = "LIVE_FEED";
             await sync();
-            // Listen for any playlist updates
             sbClient.channel('pl').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items' }, sync).subscribe();
-            playLoop();
+            play();
         }
 
         async function sync() {
@@ -207,11 +176,10 @@
             playlist = data || [];
         }
 
-        async function playLoop() {
+        async function play() {
             const container = document.getElementById('media-container');
-            const bg = document.getElementById('bg-layer');
+            const bg = document.getElementById('canvas-bg');
             
-            // Heartbeat Pulse
             await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
 
             if (playlist.length === 0) {
@@ -220,26 +188,26 @@
                     <div class="glass-card">
                         <div class="brand-eng">NEHAS SIGNAGE</div>
                         <div class="brand-am">ነሃስ ማስታወቂያ</div>
-                        <div class="instruction">Connected. Please add media or apps from your management dashboard.</div>
+                        <div class="instruction">System Active. Please add media from the dashboard.</div>
                     </div>
                 `;
-                setTimeout(playLoop, 5000);
+                setTimeout(play, 5000);
                 return;
             }
 
-            bg.style.opacity = "0"; // Fade background when content plays
+            bg.style.opacity = "0"; // Hide background when media starts
             const item = playlist[currentIndex];
             currentIndex = (currentIndex + 1) % playlist.length;
 
             if (item.media.media_type === 'image') {
                 container.innerHTML = `<img src="${item.media.file_url}">`;
-                setTimeout(playLoop, item.duration_seconds * 1000);
+                setTimeout(play, (item.duration_seconds || 10) * 1000);
             } else if (item.media.media_type === 'video') {
                 container.innerHTML = `<video src="${item.media.file_url}" autoplay muted></video>`;
-                container.querySelector('video').onended = playLoop;
+                container.querySelector('video').onended = play;
             } else {
-                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay"></iframe>`;
-                setTimeout(playLoop, item.duration_seconds * 1000);
+                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay; fullscreen"></iframe>`;
+                setTimeout(play, (item.duration_seconds || 60) * 1000);
             }
         }
 
