@@ -3,433 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nehas Admin | Dashboard</title>
+    <title>Nehas Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --primary: #3b82f6;
-            --dark: #1e293b;
-            --bg: #f4f6f8;
-            --text: #334155;
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: black; overflow: hidden; font-family: 'Segoe UI', sans-serif; 
         }
-        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); height: 100vh; display: flex; overflow: hidden; color: var(--text); }
         
-        /* Sidebar */
-        .sidebar { width: 260px; background-color: var(--dark); color: white; display: flex; flex-direction: column; flex-shrink: 0; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
-        .sidebar h2 { text-align: center; padding: 25px 0; border-bottom: 1px solid #334155; margin: 0; font-size: 1.2rem; letter-spacing: 1px; }
-        .amharic-sub { display: block; font-size: 0.8rem; color: #94a3b8; margin-top: 5px; font-weight: normal; }
-        .nav-items { list-style: none; padding: 10px 0; margin: 0; }
-        .nav-items li { padding: 15px 25px; cursor: pointer; transition: all 0.2s; border-left: 4px solid transparent; display: flex; align-items: center; gap: 10px; }
-        .nav-items li:hover { background-color: #334155; }
-        .nav-items li.active { background-color: #334155; border-left-color: var(--primary); color: var(--primary); font-weight: bold; }
+        #media-container { 
+            width: 100%; height: 100%; 
+            display: flex; align-items: center; justify-content: center; 
+            position: relative; 
+        }
+
+        img, video, iframe { 
+            width: 100%; height: 100%; 
+            border: none; object-fit: contain; 
+            position: absolute; top: 0; left: 0;
+        }
+
+        /* Pairing Display */
+        .pair-display { 
+            color: white; text-align: center; z-index: 10; 
+            animation: fadeIn 0.5s ease;
+        }
+        .code-text { 
+            font-size: 110px; font-weight: bold; color: #3b82f6; 
+            margin: 20px 0; font-family: monospace; letter-spacing: 10px;
+            text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
         
-        /* Main Content */
-        .main-content { flex: 1; padding: 40px; overflow-y: auto; display: flex; flex-direction: column; }
-        .view-section { display: none; flex-direction: column; animation: fadeIn 0.3s ease; }
-        .view-section.active { display: flex; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Diagnostic Bar (Bottom) */
+        #diag-bar { 
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: rgba(0,0,0,0.85); color: #00ff00; 
+            font-size: 11px; padding: 6px 15px; z-index: 100; 
+            font-family: monospace; display: flex; gap: 25px;
+            border-top: 1px solid #333;
+        }
 
-        h1 { margin-top: 0; font-size: 1.8rem; color: var(--dark); }
+        .diag-label { color: #888; margin-right: 5px; }
 
-        /* Dashboard Cards */
-        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 5px solid var(--primary); }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: #475569; font-size: 0.9rem; }
-        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 14px; outline: none; transition: border-color 0.2s; }
-        input:focus, select:focus { border-color: var(--primary); }
-        button { background-color: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; transition: filter 0.2s; font-size: 0.95rem; }
-        button:hover { filter: brightness(1.1); }
-        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
-        .status-msg { margin-top: 12px; text-align: center; font-size: 0.85rem; font-weight: 600; min-height: 1.2em; }
-
-        /* Library Grid */
-        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 25px; }
-        .media-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; display: flex; flex-direction: column; transition: transform 0.2s; }
-        .media-card:hover { transform: translateY(-5px); }
-        .media-preview { width: 100%; height: 150px; object-fit: cover; background: #000; cursor: pointer; }
-        .video-label { background: var(--dark); color: var(--primary); height: 150px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; flex-direction: column; text-align: center; cursor: pointer; }
-        .card-body { padding: 18px; flex-grow: 1; display: flex; flex-direction: column; gap: 10px; }
-        .file-name { font-size: 14px; font-weight: bold; color: var(--dark); line-height: 1.4; height: 2.8em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-        .del-btn { background: white !important; color: #ef4444 !important; border: 1px solid #fee2e2 !important; margin-top: 5px; }
-        .del-btn:hover { background: #fee2e2 !important; }
-
-        /* Screens Manager */
-        .screens-layout { display: flex; gap: 25px; height: calc(100vh - 180px); }
-        .screen-list { width: 320px; background: white; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .screen-item { padding: 18px; border-bottom: 1px solid #f1f5f9; cursor: pointer; position: relative; padding-left: 50px; transition: 0.2s; }
-        .screen-item:hover { background: #f8fafc; }
-        .screen-item.active-item { background: #eff6ff; border-left: 5px solid var(--primary); }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; position: absolute; left: 22px; top: 24px; border: 2px solid white; }
-        .online { background: #10b981; box-shadow: 0 0 8px #10b981; }
-        .offline { background: #ef4444; }
-        .playlist-panel { flex: 1; background: white; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .panel-header { padding: 15px 25px; border-bottom: 1px solid #e2e8f0; font-weight: bold; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0; }
-
-        /* Modal */
-        .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
-        .modal-container { position: relative; width: 85%; max-width: 1000px; display: flex; justify-content: center; background: #000; border-radius: 12px; overflow: hidden; }
-        .modal-content { width: 100%; max-height: 80vh; object-fit: contain; }
-        .close-modal { position: absolute; top: 20px; right: 25px; color: white; font-size: 35px; cursor: pointer; font-weight: bold; z-index: 101; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <h2>NEHAS SIGNAGE<span class="amharic-sub">ነሃስ ማስታወቂያ</span></h2>
-        <ul class="nav-items">
-            <li id="nav-dashboard" class="active" onclick="switchView('dashboard')">Dashboard</li>
-            <li id="nav-screens" onclick="switchView('screens')">Screens Manager</li>
-            <li id="nav-library" onclick="switchView('library')">Media Library</li>
-        </ul>
-    </div>
-
-    <div class="main-content">
-        
-        <!-- DASHBOARD VIEW -->
-        <div id="view-dashboard" class="view-section active">
-            <h1>Control Dashboard</h1>
-            <div class="grid-container">
-                <div class="card">
-                    <h3>📤 Quick Upload</h3>
-                    <div class="form-group">
-                        <label>Target Screen</label>
-                        <select class="screen-selector" id="upload-screen-select"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>File (Image/Video)</label>
-                        <input type="file" id="media-file" accept="image/*,video/mp4">
-                    </div>
-                    <div class="form-group">
-                        <label>Display Duration (Seconds)</label>
-                        <input type="number" id="duration" value="10">
-                    </div>
-                    <button onclick="uploadAndDeploy()" id="deploy-btn">Upload & Publish</button>
-                    <div id="deploy-status" class="status-msg"></div>
-                </div>
-
-                <div class="card" style="border-top-color: #8b5cf6;">
-                    <h3>🧩 Apps & Widgets</h3>
-                    <div class="form-group">
-                        <label>App Type</label>
-                        <select id="app-type" onchange="updateAppHint()">
-                            <option value="insta">Social Media Feed</option>
-                            <option value="reviews">Google Reviews</option>
-                            <option value="sports">Live Sports</option>
-                            <option value="news">News Ticker</option>
-                            <option value="menu">Digital Menu Board</option>
-                            <option value="slides">Google Slides</option>
-                            <option value="youtube">YouTube Video</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>URL / Embed Link</label>
-                        <input type="text" id="app-url-input" placeholder="Paste link here...">
-                        <small id="app-hint" style="color:#64748b; font-size:11px;">Connect social feeds via Behold.so</small>
-                    </div>
-                    <div class="form-group">
-                        <label>Target Screen</label>
-                        <select class="screen-selector" id="app-screen-select"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Display Duration (Seconds)</label>
-                        <input type="number" id="app-duration" value="60">
-                    </div>
-                    <button onclick="deployApp()" style="background:#8b5cf6;">Deploy to Screen</button>
-                    <div id="app-status" class="status-msg"></div>
-                </div>
-
-                <div class="card" style="border-top-color: #10b981;">
-                    <h3>📺 Pair New Display</h3>
-                    <div class="form-group">
-                        <label>6-Digit Pairing Code</label>
-                        <input type="text" id="pair-code" placeholder="000000" maxlength="6">
-                    </div>
-                    <div class="form-group">
-                        <label>Display Name</label>
-                        <input type="text" id="pair-name" placeholder="e.g. Main Entrance TV">
-                    </div>
-                    <button onclick="pairScreen()" style="background:#10b981;">Complete Pairing</button>
-                    <div id="pair-status" class="status-msg"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- SCREENS MANAGER VIEW -->
-        <div id="view-screens" class="view-section">
-            <h1>Screens Manager</h1>
-            <div class="screens-layout">
-                <div class="screen-list">
-                    <div class="panel-header">Active Displays</div>
-                    <div id="screen-container" style="overflow-y: auto;"></div>
-                </div>
-                <div class="playlist-panel">
-                    <div class="panel-header">
-                        <span id="p-title">Select a display to manage loop</span>
-                        <button id="refresh-pl-btn" style="width:auto; padding: 5px 15px; font-size: 12px; display:none;" onclick="loadPlaylist(activeScreenId)">Refresh Loop</button>
-                    </div>
-                    <div id="playlist-container" style="padding: 25px; overflow-y: auto;">
-                        Select a screen from the list on the left.
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- MEDIA LIBRARY VIEW -->
-        <div id="view-library" class="view-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h1>Media Library</h1>
-                <button onclick="loadLibrary()" style="width: auto; padding: 10px 25px;">🔄 Sync Library</button>
-            </div>
-            <div id="library-container" class="library-grid"></div>
-        </div>
-
-    </div>
-
-    <!-- PREVIEW MODAL -->
-    <div id="previewModal" class="modal" onclick="closePreview()">
-        <span class="close-modal" onclick="closePreview()">&times;</span>
-        <div class="modal-container" onclick="event.stopPropagation()">
-            <div id="modal-body" style="width: 100%;"></div>
-        </div>
+    <div id="media-container"></div>
+    
+    <div id="diag-bar">
+        <span><span class="diag-label">STATUS:</span> <span id="log-status">INIT</span></span>
+        <span><span class="diag-label">ID:</span> <span id="log-id">...</span></span>
+        <span><span class="diag-label">ITEMS:</span> <span id="log-count">0</span></span>
     </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        const CLOUD_NAME = 'dfgfiope9';
-        const UPLOAD_PRESET = 'nehas_unsigned'; 
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        let pairedScreens = [];
-        let activeScreenId = null;
+        let SCREEN_ID = localStorage.getItem('nehas_sid');
+        let playlist = [];
+        let currentIndex = 0;
+        let loopTimer;
 
-        // --- View Controller ---
-        function switchView(viewName) {
-            document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.nav-items li').forEach(l => l.classList.remove('active'));
-            
-            document.getElementById(`view-${viewName}`).classList.add('active');
-            document.getElementById(`nav-${viewName}`).classList.add('active');
-
-            if (viewName === 'library') loadLibrary();
-            if (viewName === 'screens') {
-                loadScreensList();
-                document.getElementById('playlist-container').innerHTML = "Select a screen from the list on the left.";
-                document.getElementById('p-title').textContent = "Select a display to manage loop";
-                document.getElementById('refresh-pl-btn').style.display = 'none';
-            }
-            if (viewName === 'dashboard') loadScreenSelectors();
-        }
-
-        window.onload = () => {
-            loadScreenSelectors();
-            switchView('dashboard');
+        const updateDiag = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
         };
 
-        async function loadScreenSelectors() {
-            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true).order('name');
-            pairedScreens = data || [];
-            document.querySelectorAll('.screen-selector').forEach(sel => {
-                if (pairedScreens.length) {
-                    sel.innerHTML = pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        async function boot() {
+            if (!SCREEN_ID) {
+                await startPairing();
+            } else {
+                updateDiag('log-id', SCREEN_ID.substring(0,8));
+                const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
+                
+                if (error || !data || !data.is_paired) {
+                    updateDiag('log-status', "UNPAIRED/NOT FOUND");
+                    await startPairing();
                 } else {
-                    sel.innerHTML = '<option value="">No screens paired</option>';
+                    updateDiag('log-status', "CONNECTED");
+                    initializePlayer();
                 }
-            });
+            }
         }
 
-        // --- Dashboard Actions ---
-        function updateAppHint() {
-            const type = document.getElementById('app-type').value;
-            const hints = {
-                insta: "Connect social feeds via Behold.so",
-                reviews: "Use Elfsight for Google Review widgets",
-                sports: "Use Scorestream for live game updates",
-                news: "Use RSS.app for custom news tickers",
-                menu: "Design in Canva and use the 'Embed' link",
-                slides: "Use Google Slides 'Publish to Web' link",
-                youtube: "Use the YouTube 'Embed' format URL"
-            };
-            document.getElementById('app-hint').innerText = hints[type];
-        }
-
-        async function uploadAndDeploy() {
-            const sid = document.getElementById('upload-screen-select').value;
-            const file = document.getElementById('media-file').files[0];
-            const dur = document.getElementById('duration').value;
-            if(!sid || !file) return alert("Select screen and file!");
-
-            const btn = document.getElementById('deploy-btn');
-            const status = document.getElementById('deploy-status');
-            btn.disabled = true; status.textContent = "🚀 Uploading to Cloud...";
-
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_preset', UPLOAD_PRESET);
-
-            try {
-                const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`, { method: 'POST', body: formData }).then(r => r.json());
-                const { data: mData } = await sbClient.from('media').insert([{ 
-                    file_name: file.name, file_url: cloudRes.secure_url, media_type: cloudRes.resource_type 
-                }]).select();
-                
-                await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, duration_seconds: dur }]);
-                status.style.color = "green";
-                status.textContent = "✅ Published successfully!";
-                document.getElementById('media-file').value = "";
-            } catch (e) { 
-                status.style.color = "red";
-                status.textContent = "❌ Upload failed."; 
-            } finally { btn.disabled = false; }
-        }
-
-        async function deployApp() {
-            const sid = document.getElementById('app-screen-select').value;
-            const typeName = document.getElementById('app-type').options[document.getElementById('app-type').selectedIndex].text;
-            let url = document.getElementById('app-url-input').value;
-            const dur = document.getElementById('app-duration').value;
-            const status = document.getElementById('app-status');
-
-            if(!sid || !url) return alert("Please provide a URL.");
-            if(url.includes("watch?v=")) url = url.replace("watch?v=", "embed/") + "?autoplay=1&mute=1";
+        async function startPairing() {
+            updateDiag('log-status', "AWAITING PAIRING");
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
             
-            const { data: mData } = await sbClient.from('media').insert([{ 
-                file_name: `App: ${typeName}`, file_url: url, media_type: 'url' 
+            // Insert with default name to satisfy DB constraints
+            const { data, error } = await sbClient.from('screens').insert([{ 
+                name: 'Display ' + code.substring(0,3), 
+                pairing_code: code, 
+                is_paired: false 
             }]).select();
-
-            await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mData[0].id, duration_seconds: dur }]);
-            status.style.color = "green";
-            status.textContent = "✅ App deployed!";
-            document.getElementById('app-url-input').value = "";
-        }
-
-        async function pairScreen() {
-            const c = document.getElementById('pair-code').value;
-            const n = document.getElementById('pair-name').value;
-            const status = document.getElementById('pair-status');
-            if(!c || !n) return alert("Fill all fields");
-
-            const { data } = await sbClient.from('screens').select('id').eq('pairing_code', c).eq('is_paired', false);
-            if(data?.length) {
-                await sbClient.from('screens').update({ name: n, is_paired: true, pairing_code: null }).eq('id', data[0].id);
-                status.style.color = "green";
-                status.textContent = "✅ Screen Paired Successfully!";
-                loadScreenSelectors();
-            } else { 
-                status.style.color = "red";
-                status.textContent = "❌ Invalid or expired code."; 
+            
+            if (error || !data) {
+                updateDiag('log-status', "DB ERROR: " + error?.message);
+                return;
             }
-        }
 
-        // --- Screens Manager Logic ---
-        async function loadScreensList() {
-            const { data } = await sbClient.from('screens').select('*').eq('is_paired', true).order('name');
-            const cont = document.getElementById('screen-container');
-            cont.innerHTML = data?.map(s => {
-                const diff = (new Date() - new Date(s.last_seen)) / 1000;
-                const statusClass = diff < 150 ? 'online' : 'offline';
-                return `<div class="screen-item ${s.id === activeScreenId ? 'active-item' : ''}" onclick="selectScreen('${s.id}', '${s.name}')">
-                    <div class="status-dot ${statusClass}"></div>
-                    <b>${s.name}</b>
-                    <div style="font-size:11px; color:#64748b;">${diff < 150 ? 'Live' : 'Offline'}</div>
+            SCREEN_ID = data[0].id;
+            localStorage.setItem('nehas_sid', SCREEN_ID);
+            updateDiag('log-id', SCREEN_ID.substring(0,8));
+            
+            document.getElementById('media-container').innerHTML = `
+                <div class="pair-display">
+                    <p style="font-size: 24px; letter-spacing: 2px; opacity: 0.8;">NEHAS SIGNAGE</p>
+                    <div class="code-text">${code}</div>
+                    <p style="font-size: 18px; opacity: 0.6;">ENTER CODE ON DASHBOARD</p>
                 </div>`;
-            }).join('') || '<div style="padding:20px;">No paired screens.</div>';
-        }
-
-        function selectScreen(id, name) {
-            activeScreenId = id;
-            document.getElementById('p-title').textContent = "Loop Management: " + name;
-            document.getElementById('refresh-pl-btn').style.display = 'block';
-            loadScreensList(); 
-            loadPlaylist(id);
-        }
-
-        async function loadPlaylist(sid) {
-            const cont = document.getElementById('playlist-container');
-            cont.innerHTML = "Syncing loop items...";
-            const { data, error } = await sbClient.from('playlist_items').select('id, duration_seconds, media!inner(*)').eq('screen_id', sid).order('display_order');
             
-            if (error) { cont.innerHTML = "Error loading items: " + error.message; return; }
-            if (!data.length) { cont.innerHTML = "No media currently assigned to this display."; return; }
-            
-            cont.innerHTML = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
-                ${data.map(item => `
-                    <div style="background:#fff; padding:12px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05); text-align:center;">
-                        <div style="font-size:12px; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:5px;">${item.media.file_name}</div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:8px;">⏱️ ${item.duration_seconds}s</div>
-                        <button onclick="removePlaylistItem('${item.id}', '${sid}')" style="padding:6px; font-size:11px; background:#fee2e2; color:#ef4444; border:1px solid #fecaca;">Remove</button>
-                    </div>
-                `).join('')}
-            </div>`;
+            // Realtime listener for the pairing event
+            sbClient.channel('pairing').on('postgres_changes', { 
+                event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
+            }, payload => {
+                if (payload.new.is_paired) {
+                    updateDiag('log-status', "PAIRED!");
+                    location.reload();
+                }
+            }).subscribe();
         }
 
-        async function removePlaylistItem(id, sid) {
-            if (confirm("Remove this item from the playback loop?")) {
-                await sbClient.from('playlist_items').delete().eq('id', id);
-                loadPlaylist(sid);
+        async function initializePlayer() {
+            await syncPlaylist();
+            
+            // Realtime sync for playlist changes
+            sbClient.channel('loop-sync').on('postgres_changes', { 
+                event: '*', schema: 'public', table: 'playlist_items' 
+            }, async () => {
+                updateDiag('log-status', "SYNCING...");
+                await syncPlaylist();
+            }).subscribe();
+            
+            // Fallback sync every 30s for browser-sleep scenarios
+            setInterval(syncPlaylist, 30000);
+            
+            play();
+        }
+
+        async function syncPlaylist() {
+            const { data, error } = await sbClient.from('playlist_items')
+                .select('duration_seconds, media!inner(*)')
+                .eq('screen_id', SCREEN_ID)
+                .order('display_order', { ascending: true });
+            
+            if (!error) {
+                playlist = data || [];
+                updateDiag('log-count', playlist.length);
+                updateDiag('log-status', playlist.length > 0 ? "PLAYING" : "LOOP EMPTY");
+            } else {
+                updateDiag('log-status', "SYNC ERROR");
             }
         }
 
-        // --- Library Logic ---
-        async function loadLibrary() {
-            const cont = document.getElementById('library-container');
-            cont.innerHTML = "<div style='grid-column:1/-1; text-align:center;'>Fetching assets...</div>";
-            const { data: media, error } = await sbClient.from('media').select('*');
-            if (error) { cont.innerHTML = "Error loading library: " + error.message; return; }
-            if (!media?.length) { cont.innerHTML = "No media in library yet."; return; }
+        async function play() {
+            clearTimeout(loopTimer);
+            const container = document.getElementById('media-container');
             
-            cont.innerHTML = media.map(item => {
-                const screenOptions = pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-                const previewHtml = item.media_type === 'video' 
-                    ? `<div class="video-label" onclick="openPreview('${item.file_url}', 'video')">🎬<br>Preview Video</div>` 
-                    : `<img src="${item.file_url}" class="media-preview" onclick="openPreview('${item.file_url}', 'image')">`;
-                
-                return `
-                    <div class="media-card">
-                        ${previewHtml}
-                        <div class="card-body">
-                            <div class="file-name" title="${item.file_name}">${item.file_name}</div>
-                            <label style="font-size:10px; font-weight:bold; color:#64748b; margin-bottom:0;">Assign to Screen:</label>
-                            <select id="lib-sel-${item.id}">${screenOptions || '<option>No screens paired</option>'}</select>
-                            <input type="number" id="lib-dur-${item.id}" value="10" placeholder="Secs">
-                            <button onclick="deployFromLibrary('${item.id}')">Add to Loop</button>
-                            <button class="del-btn" onclick="delFromLibrary('${item.id}')">Delete File</button>
-                        </div>
+            // Heartbeat update
+            await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
+
+            if (playlist.length === 0) {
+                container.innerHTML = `
+                    <div style="color:white; text-align:center;">
+                        <h2 style="font-size: 32px; letter-spacing: 2px;">ነሃስ ማስታወቂያ</h2>
+                        <p style="opacity:0.5;">No items in loop. Assign media from dashboard.</p>
                     </div>`;
-            }).join('');
-        }
+                loopTimer = setTimeout(play, 5000);
+                return;
+            }
 
-        async function deployFromLibrary(mId) {
-            const sid = document.getElementById(`lib-sel-${mId}`).value;
-            const dur = document.getElementById(`lib-dur-${mId}`).value;
-            if(!sid) return alert("Pair a screen first!");
-            await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: mId, duration_seconds: dur }]);
-            alert("✅ Added to playback loop!");
-        }
+            if (currentIndex >= playlist.length) currentIndex = 0;
+            const item = playlist[currentIndex];
+            currentIndex = (currentIndex + 1) % playlist.length;
 
-        async function delFromLibrary(id) {
-            if(confirm("Permanently delete this file and remove it from all screens?")) {
-                await sbClient.from('playlist_items').delete().eq('media_id', id);
-                await sbClient.from('media').delete().eq('id', id);
-                loadLibrary();
+            if (!item.media || !item.media.file_url) {
+                play();
+                return;
+            }
+
+            if (item.media.media_type === 'image') {
+                container.innerHTML = `<img src="${item.media.file_url}">`;
+                loopTimer = setTimeout(play, (item.duration_seconds || 10) * 1000);
+            } 
+            else if (item.media.media_type === 'video') {
+                container.innerHTML = `<video src="${item.media.file_url}" autoplay muted style="background:black;"></video>`;
+                const v = container.querySelector('video');
+                v.onended = play;
+                v.onerror = play;
+            } 
+            else if (item.media.media_type === 'url') {
+                // For YouTube and Web Apps
+                container.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay; encrypted-media; fullscreen" style="background: white;"></iframe>`;
+                loopTimer = setTimeout(play, (item.duration_seconds || 60) * 1000);
             }
         }
 
-        // --- Global Modal Controls ---
-        function openPreview(url, type) {
-            const body = document.getElementById('modal-body');
-            body.innerHTML = type === 'video' 
-                ? `<video src="${url}" controls autoplay style="width:100%; max-height:80vh;"></video>` 
-                : `<img src="${url}" style="width:100%; max-height:80vh; object-fit:contain;">`;
-            document.getElementById('previewModal').style.display = "flex";
-        }
-
-        function closePreview() { 
-            document.getElementById('previewModal').style.display = "none"; 
-            document.getElementById('modal-body').innerHTML = ""; 
-        }
-
-        document.addEventListener('keydown', (e) => { if (e.key === "Escape") closePreview(); });
+        window.onload = boot;
     </script>
 </body>
 </html>
