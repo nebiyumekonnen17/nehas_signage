@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Player | Sticky Edition</title>
+    <title>Nehas Player | Stable Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: sans-serif; }
-        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.4); z-index: 1; }
+        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.3); z-index: 1; transition: opacity 1.5s; }
         #media-container { position: relative; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; }
-        .glass-card { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(30px); padding: 60px; border-radius: 40px; border: 1px solid rgba(59, 130, 246, 0.2); text-align: center; color: white; box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8); }
-        .code { font-size: 8rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 40px #3b82f6; letter-spacing: 5px; }
+        .glass-card { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(25px); padding: 60px; border-radius: 40px; border: 1px solid rgba(59, 130, 246, 0.2); text-align: center; color: white; box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8); }
+        .code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: monospace; color: #fff; text-shadow: 0 0 40px #3b82f6; letter-spacing: 5px; }
         #log { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.6; }
     </style>
 </head>
@@ -17,72 +17,76 @@
     <div id="bg"></div>
     <div id="media-container">
         <div class="glass-card" id="ui-box">
-            <h2 style="color:#3b82f6;">CHECKING IDENTITY...</h2>
+            <h2 style="letter-spacing:5px; color:#3b82f6;">SYNCING...</h2>
         </div>
     </div>
-    <div id="log">OS_STATUS: <span id="status-text">INITIALIZING</span></div>
+    <div id="log">OS_STATUS: <span id="status-text">BOOTING</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
-        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYመaseIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
+
+        // 1. Get the stored ID immediately
+        let SCREEN_ID = localStorage.getItem('nehas_sid');
 
         async function boot() {
             const status = document.getElementById('status-text');
-            const ui = document.getElementById('ui-box');
             
-            // 1. Check LocalStorage FIRST
-            let localID = localStorage.getItem('nehas_sid');
-
-            if (localID) {
-                status.innerText = "VERIFYING_ID_WITH_CLOUD";
-                const { data, error } = await sbClient.from('screens').select('*').eq('id', localID).maybeSingle();
+            if (SCREEN_ID) {
+                status.innerText = "VERIFYING_IDENTITY";
+                // Check if this ID still exists in your database
+                const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
                 
                 if (data) {
-                    // ID exists in DB!
                     if (data.is_paired) {
-                        startLoop(localID);
+                        startLoop();
                     } else {
-                        // Re-use the EXACT same pairing code from the DB
-                        showPairingUI(data.pairing_code, localID);
+                        // RE-USE the existing code from the database
+                        showPairingUI(data.pairing_code);
                     }
-                    return;
+                    return; // Identity is locked. STOP the boot process here.
                 }
             }
 
-            // 2. If no ID found, create ONE new one
-            status.innerText = "CREATING_NEW_IDENTITY";
-            const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+            // 2. Only if no valid identity is found, create a new one
+            startNewRegistration();
+        }
+
+        async function startNewRegistration() {
+            document.getElementById('status-text').innerText = "REGISTERING_NEW_UNIT";
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
             
-            const { data: newScreen, error: insertError } = await sbClient.from('screens').insert([
-                { name: 'Generic-Unit', pairing_code: newCode, is_paired: false }
+            const { data, error } = await sbClient.from('screens').insert([
+                { name: 'Player-Unit', pairing_code: code, is_paired: false }
             ]).select();
 
-            if (newScreen && newScreen[0]) {
-                localStorage.setItem('nehas_sid', newScreen[0].id);
-                showPairingUI(newCode, newScreen[0].id);
+            if (data && data[0]) {
+                SCREEN_ID = data[0].id;
+                localStorage.setItem('nehas_sid', SCREEN_ID); // Save it to the browser memory!
+                showPairingUI(code);
+            } else {
+                setTimeout(startNewRegistration, 5000); // Retry if internet is slow
             }
         }
 
-        function showPairingUI(code, sid) {
-            document.getElementById('status-text').innerText = "AWAITING_PAIRING";
+        function showPairingUI(code) {
+            document.getElementById('status-text').innerText = "AWAITING_DASHBOARD";
             document.getElementById('ui-box').innerHTML = `
-                <div style="letter-spacing:5px; color:#3b82f6; font-weight:bold;">NEHAS SIGNAGE</div>
+                <div style="font-weight:900; color:#3b82f6; letter-spacing:5px;">NEHAS SIGNAGE</div>
                 <div class="code">${code}</div>
-                <p>Enter this code in your dashboard.</p>
+                <p>Enter this code in your dashboard to link this TV.</p>
             `;
-
-            // Setup the Realtime listener for pairing
-            sbClient.channel('pair').on('postgres_changes', { 
-                event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${sid}` 
-            }, (payload) => {
-                if(payload.new.is_paired) location.reload();
-            }).subscribe();
+            
+            // Watch for the "paired" status update
+            sbClient.channel('p').on('postgres_changes', { 
+                event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
+            }, () => location.reload()).subscribe();
         }
 
-        async function startLoop(sid) {
+        async function startLoop() {
             document.getElementById('status-text').innerText = "SYSTEM_LIVE";
-            const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', sid);
+            const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
             if (data?.length > 0) {
                 document.getElementById('bg').style.opacity = "0";
                 const m = data[0].media;
@@ -91,7 +95,7 @@
                 else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
                 else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;">`;
             } else {
-                document.getElementById('ui-box').innerHTML = `<h2>NEHAS SIGNAGE</h2><p>Linked & Ready.</p>`;
+                document.getElementById('ui-box').innerHTML = `<h2>NEHAS SIGNAGE</h2><p>Connected. Add media to begin.</p>`;
             }
         }
 
