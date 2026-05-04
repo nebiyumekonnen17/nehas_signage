@@ -25,6 +25,7 @@
         button { background: #3b82f6; color: white; border: none; cursor: pointer; font-weight: bold; }
         button:hover { background: #2563eb; }
         .del-btn { background: white !important; color: #ef4444 !important; border: 1px solid #fee2e2 !important; margin-top: auto; }
+        .system-alert { background: #fee2e2; color: #b91c1c; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #fecaca; }
     </style>
 </head>
 <body>
@@ -41,6 +42,7 @@
             <h1>Media Library</h1>
             <button onclick="loadLibrary()" style="width: auto; padding: 10px 20px;">🔄 Refresh Library</button>
         </div>
+        <div id="alert-container"></div>
         <div id="library-container" class="library-grid"></div>
     </div>
 
@@ -55,24 +57,28 @@
             if (!window.supabase) return;
             sbClient = window.supabase.createClient(S_URL, S_KEY);
             
-            // Try to get screens for the dropdown
-            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
-            pairedScreens = data || [];
+            // Get screens for dropdowns
+            try {
+                const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+                pairedScreens = data || [];
+            } catch (e) { console.error(e); }
             
             loadLibrary();
         };
 
         async function loadLibrary() {
             const cont = document.getElementById('library-container');
-            cont.innerHTML = "Loading assets...";
+            const alertCont = document.getElementById('alert-container');
+            cont.innerHTML = "Loading...";
+            alertCont.innerHTML = "";
 
             try {
-                // Fetch media without any ordering first to ensure it loads
+                // Fetch media - removed .order() to avoid crash if created_at is missing
                 const { data: media, error } = await sbClient.from('media').select('*');
 
                 if (error) {
-                    console.error("Supabase error:", error);
-                    cont.innerHTML = `<div style="color:red">Error: ${error.message}. <br>Make sure the 'media' table exists in Supabase SQL editor.</div>`;
+                    alertCont.innerHTML = `<div class="system-alert">⚠️ <b>Database Error:</b> ${error.message}</div>`;
+                    cont.innerHTML = "";
                     return;
                 }
 
@@ -85,7 +91,7 @@
                     const options = pairedScreens.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
                     const preview = item.media_type === 'video' 
                         ? `<div class="video-label">🎬<br>VIDEO</div>` 
-                        : `<img src="${item.file_url}" class="media-preview" onerror="this.src='https://via.placeholder.com/150?text=No+Preview'">`;
+                        : `<img src="${item.file_url}" class="media-preview" onerror="this.src='https://via.placeholder.com/150?text=Image+Missing'">`;
 
                     return `
                         <div class="media-card">
@@ -95,12 +101,12 @@
                                 <select id="sel-${item.id}">${options || '<option value="">No screens</option>'}</select>
                                 <input type="number" id="dur-${item.id}" value="10" placeholder="Secs">
                                 <button onclick="deploy('${item.id}')">Add to Playlist</button>
-                                <button class="del-btn" onclick="del('${item.id}')">Delete Permanently</button>
+                                <button class="del-btn" onclick="del('${item.id}')">Delete Forever</button>
                             </div>
                         </div>`;
                 }).join('');
             } catch (e) {
-                cont.innerHTML = "Critical Error: " + e.message;
+                alertCont.innerHTML = `<div class="system-alert">⚠️ <b>Critical Error:</b> ${e.message}</div>`;
             }
         }
 
@@ -112,12 +118,13 @@
             const { data } = await sbClient.from('playlist_items').select('display_order').eq('screen_id', sId).order('display_order', {ascending: false}).limit(1);
             const ord = (data?.[0]?.display_order || 0) + 1;
 
-            await sbClient.from('playlist_items').insert([{ screen_id: sId, media_id: mId, display_order: ord, duration_seconds: dur }]);
-            alert("Sent to screen!");
+            const { error } = await sbClient.from('playlist_items').insert([{ screen_id: sId, media_id: mId, display_order: ord, duration_seconds: dur }]);
+            if (error) alert("Error: " + error.message);
+            else alert("Added to playlist!");
         }
 
         async function del(id) {
-            if (!confirm("Delete forever?")) return;
+            if (!confirm("Delete permanently?")) return;
             await sbClient.from('playlist_items').delete().eq('media_id', id);
             await sbClient.from('media').delete().eq('id', id);
             loadLibrary();
