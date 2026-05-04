@@ -6,7 +6,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: sans-serif; }
-        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.3); z-index: 1; transition: opacity 1s; }
+        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.3); z-index: 1; transition: opacity 1.5s; }
         #media-container { position: relative; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; }
         .glass-card { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(25px); padding: 60px; border-radius: 40px; border: 1px solid rgba(59, 130, 246, 0.2); text-align: center; color: white; box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8); }
         .code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: monospace; color: #fff; text-shadow: 0 0 40px #3b82f6; letter-spacing: 5px; }
@@ -17,7 +17,7 @@
     <div id="bg"></div>
     <div id="media-container">
         <div class="glass-card" id="ui-box">
-            <h2 style="letter-spacing:5px; color:#3b82f6;">WAKING UP...</h2>
+            <h2 style="letter-spacing:5px; color:#3b82f6;">SYNCING...</h2>
         </div>
     </div>
     <div id="log">OS_STATUS: <span id="status-text">BOOTING</span></div>
@@ -27,70 +27,79 @@
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        // STAGE 1: Immediate Identity Retrieval
+        // STAGE 1: Check Local Storage immediately upon load
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         let SAVED_CODE = localStorage.getItem('nehas_code');
 
         async function boot() {
             const status = document.getElementById('status-text');
             
+            // If we have both an ID and a Code, try to use them
             if (SCREEN_ID && SAVED_CODE) {
-                status.innerText = "VERIFYING_LOCK";
-                const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
+                status.innerText = "VERIFYING_IDENTITY";
+                const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
                 
                 if (data) {
                     if (data.is_paired) {
                         startLoop();
                     } else {
+                        // Re-use the existing code so it doesn't change on the user
                         showPairingUI(data.pairing_code);
                     }
                     return; 
+                } else {
+                    // If the ID was deleted from the DB, we must clear our local memory
+                    localStorage.clear();
+                    SCREEN_ID = null;
+                    SAVED_CODE = null;
                 }
             }
-            
-            // If no valid identity is found, start a new registration
-            registerNewDevice();
+
+            // STAGE 2: If no valid identity is found, register brand new unit
+            startNewRegistration();
         }
 
-        async function registerNewDevice() {
-            document.getElementById('status-text').innerText = "GENERATING_IDENTITY";
+        async function startNewRegistration() {
+            const status = document.getElementById('status-text');
+            status.innerText = "REGISTERING_NEW_UNIT";
             
-            // Generate code locally FIRST
+            // Generate a code LOCALLY first
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             
-            // SHOW THE CODE IMMEDIATELY
-            showPairingUI(code);
-
-            // Attempt to save to database in the background
+            // Attempt to save to database
             const { data, error } = await sbClient.from('screens').insert([
                 { name: 'Player-Unit', pairing_code: code, is_paired: false }
             ]).select();
 
             if (data && data[0]) {
+                // SUCCESS: Save both to memory immediately
                 SCREEN_ID = data[0].id;
-                // LOCK BOTH TO MEMORY
+                SAVED_CODE = code;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
                 localStorage.setItem('nehas_code', code);
-                document.getElementById('status-text').innerText = "IDENTITY_LOCKED";
-                watchPairing();
+                
+                showPairingUI(code);
             } else {
-                document.getElementById('status-text').innerText = "SYNC_RETRYING...";
-                setTimeout(registerNewDevice, 5000);
+                // If DB fails (usually internet), show an error and retry
+                status.innerText = "CONNECTION_ERROR_RETRYING";
+                setTimeout(startNewRegistration, 5000);
             }
         }
 
         function showPairingUI(code) {
+            document.getElementById('status-text').innerText = "AWAITING_DASHBOARD";
             document.getElementById('ui-box').innerHTML = `
                 <div style="font-weight:900; color:#3b82f6; letter-spacing:5px;">NEHAS SIGNAGE</div>
                 <div class="code">${code}</div>
-                <p>Enter this code in your dashboard.</p>
+                <p>Enter this code in your dashboard to link this TV.</p>
             `;
-        }
-
-        function watchPairing() {
+            
+            // Real-time listener for pairing status
             sbClient.channel('p').on('postgres_changes', { 
                 event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
-            }, () => location.reload()).subscribe();
+            }, (payload) => {
+                if(payload.new.is_paired) location.reload();
+            }).subscribe();
         }
 
         async function startLoop() {
@@ -100,14 +109,15 @@
                 document.getElementById('bg').style.opacity = "0";
                 const m = data[0].media;
                 const cont = document.getElementById('media-container');
-                if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()"></video>`;
+                if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()" style="width:100%;height:100%;object-fit:cover;"></video>`;
                 else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
-                else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;">`;
+                else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
             } else {
                 document.getElementById('ui-box').innerHTML = `<h2>NEHAS SIGNAGE</h2><p>Connected. Add media to begin.</p>`;
             }
         }
 
+        // Run boot when the window is ready
         window.onload = boot;
     </script>
 </body>
