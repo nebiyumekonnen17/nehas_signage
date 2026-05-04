@@ -2,26 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Admin | ነሃስ ማስታወቂያ</title>
+    <title>Nehas Admin Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #3b82f6; --dark: #1e293b; --bg: #f4f6f8; }
-        body { margin: 0; font-family: sans-serif; background: var(--bg); display: flex; height: 100vh; }
-        .sidebar { width: 250px; background: var(--dark); color: white; padding: 20px; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; height: 100vh; }
+        .sidebar { width: 260px; background: var(--dark); color: white; padding: 20px; flex-shrink: 0; }
         .main { flex: 1; padding: 40px; overflow-y: auto; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 5px solid var(--primary); }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border-top: 5px solid var(--primary); }
         input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; }
         button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
-        .nav-item { padding: 15px; cursor: pointer; border-bottom: 1px solid #334155; }
-        .nav-item:hover { background: #334155; }
+        .nav-item { padding: 15px; cursor: pointer; border-radius: 8px; margin-bottom: 5px; }
+        .nav-item:hover, .nav-item.active { background: #334155; }
         .view { display: none; }
         .view.active { display: block; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h2>NEHAS SIGNAGE</h2>
-        <div class="nav-item" onclick="showView('dash')">Dashboard</div>
+        <h2 style="text-align:center;">NEHAS SIGNAGE</h2>
+        <div class="nav-item active" onclick="showView('dash')">Control Center</div>
         <div class="nav-item" onclick="showView('lib')">Media Library</div>
     </div>
 
@@ -29,23 +29,23 @@
         <div id="view-dash" class="view active">
             <h1>Dashboard</h1>
             <div class="card">
-                <h3>📺 Link New TV</h3>
-                <input type="text" id="p-code" placeholder="6-Digit Code from TV">
-                <input type="text" id="p-name" placeholder="TV Name (e.g. Front Desk)">
-                <button onclick="pairTV()">Link Display</button>
-                <p id="p-status" style="font-weight:bold; margin-top:10px;"></p>
+                <h3>📺 Pair New Display</h3>
+                <input type="text" id="p-code" placeholder="6-Digit Pairing Code">
+                <input type="text" id="p-name" placeholder="Display Name (e.g., Lobby TV)">
+                <button onclick="pairTV()">Link Device</button>
+                <p id="p-status" style="font-weight:bold; margin-top:10px; text-align:center;"></p>
             </div>
             <div class="card">
-                <h3>🧩 Deploy App/URL</h3>
+                <h3>🧩 Fast Deploy URL</h3>
                 <select id="app-sid" class="screen-sel"></select>
-                <input type="text" id="app-url" placeholder="https://youtube.com/...">
-                <button onclick="deployApp()">Deploy App</button>
+                <input type="text" id="app-url" placeholder="Paste URL (YouTube/Web)">
+                <button onclick="deployApp()">Send to Screen</button>
             </div>
         </div>
 
         <div id="view-lib" class="view">
             <h1>Media Library</h1>
-            <div id="lib-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:20px;"></div>
+            <div id="lib-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;"></div>
         </div>
     </div>
 
@@ -56,6 +56,7 @@
 
         function showView(id) {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.getElementById('view-' + id).classList.add('active');
             if(id === 'dash') loadSelectors();
             if(id === 'lib') loadLibrary();
@@ -73,25 +74,26 @@
             const name = document.getElementById('p-name').value.trim();
             const status = document.getElementById('p-status');
             
-            status.innerText = "Searching for code...";
+            status.style.color = "blue"; status.innerText = "Finding code...";
+
             const { data } = await sbClient.from('screens').select('id').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
             
             if (data) {
                 await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
-                status.style.color = "green"; status.innerText = "✅ Successfully Linked!";
+                status.style.color = "green"; status.innerText = "✅ Display Linked!";
                 loadSelectors();
             } else {
-                status.style.color = "red"; status.innerText = "❌ Invalid or Expired Code.";
+                status.style.color = "red"; status.innerText = "❌ Code Invalid or Expired.";
             }
         }
 
         async function deployApp() {
             const url = document.getElementById('app-url').value;
             const sid = document.getElementById('app-sid').value;
-            const { data } = await sbClient.from('media').insert([{ file_name: "Web App", file_url: url, media_type: 'url' }]).select();
+            const { data } = await sbClient.from('media').insert([{ file_name: "Web Link", file_url: url, media_type: 'url' }]).select();
             if (data) {
                 await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: data[0].id, duration_seconds: 60 }]);
-                alert("Deployed!");
+                alert("Deployed successfully!");
             }
         }
 
