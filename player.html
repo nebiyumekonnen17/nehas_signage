@@ -6,17 +6,26 @@
     <title>Nehas Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-        #media-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; }
-        .pair-display { color: white; text-align: center; }
-        .code-text { font-size: 100px; font-weight: bold; color: #3b82f6; margin: 20px 0; font-family: monospace; }
-        #debug-log { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #00ff00; font-size: 10px; padding: 5px; z-index: 100; font-family: monospace; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; font-family: sans-serif; }
+        #media-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+        img, video, iframe { width: 100%; height: 100%; border: none; object-fit: contain; position: absolute; }
+        .pair-display { color: white; text-align: center; z-index: 10; font-family: 'Segoe UI', sans-serif; }
+        .code-text { font-size: 110px; font-weight: bold; color: #3b82f6; margin: 30px 0; font-family: monospace; letter-spacing: 10px; }
+        #debug-bar { 
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: rgba(0,0,0,0.8); color: #00ff00; 
+            font-size: 11px; padding: 5px 15px; z-index: 100; 
+            font-family: monospace; display: flex; gap: 20px;
+        }
     </style>
 </head>
 <body>
     <div id="media-container"></div>
-    <div id="debug-log">Initializing...</div>
+    <div id="debug-bar">
+        <span>STATUS: <span id="log-status">INITIALIZING</span></span>
+        <span>ID: <span id="log-id">...</span></span>
+        <span>ITEMS: <span id="log-count">0</span></span>
+    </div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
@@ -28,46 +37,52 @@
         let currentIndex = 0;
         let loopTimer;
 
-        const log = (msg) => document.getElementById('debug-log').innerText = msg;
+        const logStatus = (msg) => document.getElementById('log-status').innerText = msg;
+        const logId = (id) => document.getElementById('log-id').innerText = id;
+        const logCount = (count) => document.getElementById('log-count').innerText = count;
 
         async function boot() {
-            log("Checking local ID...");
             if (!SCREEN_ID) {
                 await startPairing();
             } else {
+                logId(SCREEN_ID.substring(0, 8));
                 const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).single();
                 if (error || !data || !data.is_paired) {
-                    log("ID invalid or unpaired. Starting fresh...");
                     await startPairing();
                 } else {
-                    log("Paired! Starting playback...");
+                    logStatus("PAIRED: FETCHING...");
                     runSystem();
                 }
             }
         }
 
         async function startPairing() {
-            log("Generating pairing code...");
+            logStatus("AWAITING PAIRING");
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             
-            const { data, error } = await sbClient.from('screens').insert([{ pairing_code: code, is_paired: false }]).select();
+            // CRITICAL FIX: Providing a default name to avoid DB Not-Null constraint violation
+            const { data, error } = await sbClient.from('screens').insert([{ 
+                name: "New Display Unit", 
+                pairing_code: code, 
+                is_paired: false 
+            }]).select();
             
-            if (error) {
-                log("DB ERROR: " + error.message);
-                return;
+            if (error || !data || data.length === 0) { 
+                logStatus("DB ERROR: " + (error?.message || "Insert failed")); 
+                return; 
             }
-
+            
             SCREEN_ID = data[0].id;
             localStorage.setItem('nehas_sid', SCREEN_ID);
+            logId(SCREEN_ID.substring(0, 8));
             
             document.getElementById('media-container').innerHTML = `
                 <div class="pair-display">
-                    <div style="font-size:24px;">NEHAS SIGNAGE</div>
+                    <p style="font-size:24px; opacity:0.8;">NEHAS SIGNAGE</p>
                     <div class="code-text">${code}</div>
-                    <div style="font-size:18px;">Enter this code on your dashboard</div>
+                    <p style="font-size:18px;">ENTER THIS CODE IN DASHBOARD</p>
                 </div>`;
             
-            // Wait for admin to pair
             sbClient.channel('pair-watch').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, payload => {
                 if (payload.new.is_paired) location.reload();
             }).subscribe();
@@ -75,24 +90,26 @@
 
         async function runSystem() {
             await sync();
-            // Watch for playlist changes
-            sbClient.channel('playlist-watch').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items' }, sync).subscribe();
+            // Listen for any changes to playlist items for this specific screen
+            sbClient.channel('pl-watch').on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_items' }, () => {
+                sync();
+            }).subscribe();
             play();
         }
 
         async function sync() {
-            log("Syncing items...");
-            const { data, error } = await sbClient
-                .from('playlist_items')
-                .select('duration_seconds, media!inner(*)') 
-                .eq('screen_id', SCREEN_ID)
-                .order('display_order', { ascending: true });
-
-            if (!error) {
-                playlist = data || [];
-                log(`Active items: ${playlist.length}`);
+            // Simplified select to ensure we get results even if schema is partially missing
+            const { data, error } = await sbClient.from('playlist_items')
+                .select('duration_seconds, media!inner(*)')
+                .eq('screen_id', SCREEN_ID);
+            
+            if (!error) { 
+                playlist = data || []; 
+                logCount(playlist.length); 
+                logStatus(playlist.length > 0 ? "PLAYING" : "LOOP EMPTY");
             } else {
-                log("Sync Error: " + error.message);
+                logStatus("SYNC ERROR");
+                console.error(error);
             }
         }
 
@@ -100,32 +117,41 @@
             clearTimeout(loopTimer);
             const cont = document.getElementById('media-container');
             
-            // Heartbeat
+            // Pulse heartbeat
             await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
-
+            
             if (playlist.length === 0) {
-                cont.innerHTML = `<div style="color:white; text-align:center;"><h2>ነሃስ ማስታወቂያ</h2><p>Waiting for content...</p></div>`;
+                cont.innerHTML = `
+                    <div style="color:white; text-align:center;">
+                        <h2 style="font-family: 'Segoe UI', sans-serif;">ነሃስ ማስታወቂያ</h2>
+                        <p style="opacity:0.6;">Waiting for media assignment...</p>
+                    </div>`;
                 loopTimer = setTimeout(play, 5000);
                 return;
             }
 
             const item = playlist[currentIndex];
             currentIndex = (currentIndex + 1) % playlist.length;
+            
+            if (!item.media || !item.media.file_url) {
+                play(); 
+                return;
+            }
 
             if (item.media.media_type === 'image') {
-                cont.innerHTML = `<img src="${item.media.file_url}">`;
+                cont.innerHTML = `<img src="${item.media.file_url}" style="width:100%; height:100%; object-fit:contain;">`;
                 loopTimer = setTimeout(play, (item.duration_seconds || 10) * 1000);
             } else if (item.media.media_type === 'video') {
-                cont.innerHTML = `<video src="${item.media.file_url}" autoplay muted style="background:black;"></video>`;
+                cont.innerHTML = `<video src="${item.media.file_url}" autoplay muted style="width:100%; height:100%; object-fit:contain;"></video>`;
                 const v = cont.querySelector('video');
                 v.onended = play;
-                v.onerror = play;
+                v.onerror = () => { console.error("Video play error"); play(); };
             } else {
-                cont.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay"></iframe>`;
+                // Handling Web Apps / URL types
+                cont.innerHTML = `<iframe src="${item.media.file_url}" allow="autoplay; encrypted-media" style="width:100vw; height:100vh;"></iframe>`;
                 loopTimer = setTimeout(play, (item.duration_seconds || 60) * 1000);
             }
         }
-
         boot();
     </script>
 </body>
