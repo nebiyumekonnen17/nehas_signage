@@ -2,25 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Player | ነሃስ ማስታወቂያ</title>
+    <title>Nehas Signage Player | ነሃስ ማስታወቂያ</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #05070a; overflow: hidden; font-family: sans-serif; }
-        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.4); z-index: 1; transition: opacity 1.5s; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.4); z-index: 1; transition: opacity 1s; }
         #media-container { position: relative; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; }
-        .glass-card { background: rgba(0,0,0,0.6); backdrop-filter: blur(25px); padding: 50px 70px; border-radius: 40px; border: 1px solid rgba(255,255,255,0.1); text-align: center; color: white; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
-        .code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: monospace; color: #fff; text-shadow: 0 0 30px #3b82f6; }
-        #status-log { position: fixed; bottom: 10px; left: 15px; font-size: 10px; color: #00ff00; z-index: 100; font-family: monospace; }
+        .glass-card { background: rgba(0,0,0,0.7); backdrop-filter: blur(20px); padding: 50px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); text-align: center; color: white; box-shadow: 0 20px 50px rgba(0,0,0,0.8); min-width: 400px; }
+        .code { font-size: 8rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 30px #3b82f6; }
+        #log-bar { position: fixed; bottom: 10px; left: 15px; font-size: 11px; color: #00ff00; z-index: 100; font-family: monospace; background: rgba(0,0,0,0.6); padding: 4px 8px; border-radius: 4px; }
     </style>
 </head>
 <body>
     <div id="bg"></div>
     <div id="media-container">
-        <div class="glass-card" id="ui-box">
-            <h2 style="color:#3b82f6; letter-spacing:2px;">INITIALIZING...</h2>
+        <div class="glass-card" id="main-ui">
+            <h2 style="color:#3b82f6;">INITIALIZING...</h2>
         </div>
     </div>
-    <div id="status-log">SYSTEM: STANDBY</div>
+    <div id="log-bar">NEHAS_OS: <span id="log-text">READY</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
@@ -28,8 +28,15 @@
         const sbClient = supabase.createClient(S_URL, S_KEY);
         let SCREEN_ID = localStorage.getItem('nehas_sid');
 
+        // Safe logging function to fix the 'null' error in your screenshot
+        function updateStatus(msg) {
+            const el = document.getElementById('log-text');
+            if (el) el.innerText = msg;
+            console.log(msg);
+        }
+
         async function boot() {
-            log("CHECKING DEVICE ID...");
+            updateStatus("CHECKING DEVICE...");
             if (!SCREEN_ID) {
                 await startNewPairing();
             } else {
@@ -40,68 +47,72 @@
                 }
                 if (!data.is_paired) {
                     showCodeUI(data.pairing_code);
-                    listenForPairing();
+                    watchForPairing();
                 } else {
-                    startLoop();
+                    startPlayerLoop();
                 }
             }
         }
 
         async function startNewPairing() {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            log("GENERATING CODE...");
+            updateStatus("REGISTERING...");
             
-            // SHOW CODE IMMEDIATELY
+            // Show UI immediately
             showCodeUI(code);
 
             try {
-                // Register with DB using only English to avoid encoding errors
+                // English only for database to avoid header encoding crash
                 const { data, error } = await sbClient.from('screens').insert([
-                    { name: 'Display-Unit', pairing_code: code, is_paired: false }
+                    { name: 'Player-Unit', pairing_code: code, is_paired: false }
                 ]).select();
 
                 if (error) throw error;
                 SCREEN_ID = data[0].id;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
-                log("REGISTERED. AWAITING DASHBOARD...");
-                listenForPairing();
+                updateStatus("READY / AWAITING LINK");
+                watchForPairing();
             } catch (err) {
-                log("DATABASE ERROR: " + err.message);
+                updateStatus("DB ERROR: " + err.message);
             }
         }
 
         function showCodeUI(code) {
-            document.getElementById('ui-box').innerHTML = `
-                <div style="letter-spacing:5px; color:#3b82f6; font-weight:bold;">ACTIVATION CODE</div>
+            document.getElementById('main-ui').innerHTML = `
+                <div style="letter-spacing:4px; font-weight:bold; color:#3b82f6;">PAIRING CODE</div>
                 <div class="code">${code}</div>
-                <p style="opacity:0.7;">Enter this code on your management dashboard</p>
+                <p style="opacity:0.7;">Enter this code on the dashboard to start</p>
             `;
         }
 
-        function listenForPairing() {
-            sbClient.channel('p').on('postgres_changes', { 
+        function watchForPairing() {
+            sbClient.channel('pairing').on('postgres_changes', { 
                 event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
             }, () => location.reload()).subscribe();
         }
 
-        function log(msg) { document.getElementById('log').innerText = msg; }
-
-        async function startLoop() {
-            log("SYSTEM LIVE");
+        async function startPlayerLoop() {
+            updateStatus("SYSTEM LIVE");
             const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
-            if (data?.length > 0) {
+            
+            if (data && data.length > 0) {
                 document.getElementById('bg').style.opacity = "0";
                 const m = data[0].media;
-                const cont = document.getElementById('media-container');
-                if(m.media_type === 'video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()"></video>`;
-                else if(m.media_type === 'url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%; height:100%; border:none;"></iframe>`;
-                else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%; max-height:100%;">`;
+                const container = document.getElementById('media-container');
+                if (m.media_type === 'video') {
+                    container.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()"></video>`;
+                } else if (m.media_type === 'url') {
+                    container.innerHTML = `<iframe src="${m.file_url}" style="width:100%; height:100%; border:none;"></iframe>`;
+                } else {
+                    container.innerHTML = `<img src="${m.file_url}" style="max-width:100%; max-height:100%;">`;
+                }
             } else {
-                document.getElementById('ui-box').innerHTML = `<h2>ነሃስ ማስታወቂያ</h2><p>Connected & Ready.</p>`;
+                document.getElementById('main-ui').innerHTML = `<h2>ነሃስ ማስታወቂያ</h2><p>Connected. Add media to begin.</p>`;
             }
         }
 
-        boot();
+        // Start the system
+        window.onload = boot;
     </script>
 </body>
 </html>
