@@ -2,26 +2,62 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nehas Player | Digital Signage</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: 'Inter', sans-serif; }
+        
+        /* High-End Background */
         #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.4); z-index: 1; transition: opacity 1.5s; }
+        
         #media-container { position: relative; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; }
-        .glass-card { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(30px); padding: 60px 80px; border-radius: 40px; border: 1px solid rgba(255, 255, 255, 0.1); text-align: center; color: white; box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8); }
-        .code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: monospace; color: #fff; text-shadow: 0 0 40px #3b82f6; letter-spacing: 5px; }
-        #log { position: fixed; bottom: 12px; left: 20px; font-size: 11px; color: #3b82f6; z-index: 100; font-family: monospace; }
+        
+        /* Neon Glassmorphism Card */
+        .glass-card { 
+            background: rgba(15, 23, 42, 0.7); 
+            backdrop-filter: blur(30px); 
+            padding: 60px 80px; 
+            border-radius: 40px; 
+            border: 1px solid rgba(59, 130, 246, 0.2); 
+            text-align: center; 
+            color: white; 
+            box-shadow: 0 0 50px rgba(59, 130, 246, 0.2), 0 30px 100px rgba(0, 0, 0, 0.8); 
+            animation: float 6s ease-in-out infinite; 
+        }
+
+        .brand-eng { font-size: 1.8rem; letter-spacing: 8px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; text-transform: uppercase; }
+        .brand-am { font-size: 1.4rem; color: #94a3b8; margin-bottom: 30px; letter-spacing: 2px; }
+        
+        .code { 
+            font-size: 8rem; 
+            font-weight: 900; 
+            margin: 20px 0; 
+            font-family: 'Monaco', monospace; 
+            color: #fff; 
+            text-shadow: 0 0 40px #3b82f6; 
+            letter-spacing: 10px; 
+        }
+
+        .instruction { font-size: 1.1rem; color: #64748b; max-width: 450px; line-height: 1.6; }
+
+        @keyframes float { 
+            0%, 100% { transform: translateY(0px); } 
+            50% { transform: translateY(-20px); } 
+        }
+
+        #status-ticker { position: fixed; bottom: 15px; left: 20px; font-size: 10px; color: #3b82f6; z-index: 100; font-family: monospace; letter-spacing: 2px; opacity: 0.5; }
     </style>
 </head>
 <body>
     <div id="bg"></div>
     <div id="media-container">
         <div class="glass-card" id="ui-box">
-            <h2 style="letter-spacing:5px; color:#3b82f6;">SYSTEM START</h2>
-            <p>Preparing Activation...</p>
+            <h2 style="color:#3b82f6; letter-spacing:5px;">SYSTEM_BOOT</h2>
+            <p>Verifying Identity...</p>
         </div>
     </div>
-    <div id="log">STATUS: <span id="log-text">IDLE</span></div>
+    <div id="status-ticker">NEHAS_OS // <span id="log-text">INITIALIZING</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
@@ -36,71 +72,81 @@
         }
 
         async function boot() {
-            updateLog("CHECKING_IDENTITY");
+            updateLog("CHECKING_LOCAL_STORAGE");
+            
             if (SCREEN_ID) {
+                // Verify ID still exists in Database
                 const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
                 if (data) {
                     if (data.is_paired) startLoop();
                     else showPairingUI(data.pairing_code);
-                    return; 
+                    return;
                 }
             }
             startNewPairing();
         }
 
         async function startNewPairing() {
-            updateLog("GENERATING_LOCAL_CODE");
+            updateLog("GENERATING_NEW_IDENTITY");
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             
-            // Step 1: Show the code on TV immediately so user isn't waiting
+            // Show UI immediately
             showPairingUI(code);
 
-            // Step 2: Attempt background registration with DB
-            updateLog("SYNCING_WITH_CLOUD");
+            // Register with DB using English to avoid ISO-8859-1 header errors
             const { data, error } = await sbClient.from('screens').insert([
-                { name: 'Generic-Unit', pairing_code: code, is_paired: false }
+                { name: 'Display-Unit', pairing_code: code, is_paired: false }
             ]).select();
 
             if (data && data[0]) {
                 SCREEN_ID = data[0].id;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
-                updateLog("CLOUD_SYNC_SUCCESS");
+                updateLog("IDENTITY_LOCKED");
                 watchPairing();
             } else {
-                updateLog("CLOUD_SYNC_FAILED_RETRYING");
+                updateLog("DB_SYNC_ERROR_RETRYING");
                 setTimeout(startNewPairing, 5000);
             }
         }
 
         function showPairingUI(code) {
-            const ui = document.getElementById('ui-box');
-            if (ui) {
-                ui.innerHTML = `
-                    <div style="letter-spacing:8px; font-weight:900; color:#3b82f6; font-size:26px;">NEHAS SIGNAGE</div>
-                    <div class="code">${code}</div>
-                    <p style="opacity:0.7;">Enter this activation code on your dashboard.</p>
-                `;
-            }
+            document.getElementById('ui-box').innerHTML = `
+                <div class="brand-eng">NEHAS SIGNAGE</div>
+                <div class="brand-am">ነሃስ ማስታወቂያ</div>
+                <div class="code">${code}</div>
+                <div class="instruction">Enter this activation code on your management dashboard to link this display.</div>
+            `;
         }
 
         function watchPairing() {
-            sbClient.channel('p').on('postgres_changes', { 
+            sbClient.channel('pairing').on('postgres_changes', { 
                 event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` 
             }, () => location.reload()).subscribe();
         }
 
         async function startLoop() {
-            updateLog("UNIT_LIVE");
+            updateLog("PLAYER_LIVE");
             const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
+            
             if (data?.length > 0) {
                 document.getElementById('bg').style.opacity = "0";
                 const m = data[0].media;
                 const cont = document.getElementById('media-container');
-                if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()"></video>`;
-                else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%; height:100%; border:none;"></iframe>`;
-                else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%; max-height:100%;">`;
+                
+                if(m.media_type === 'video') {
+                    cont.innerHTML = `<video src="${m.file_url}" autoplay muted onended="location.reload()" style="width:100%;height:100%;object-fit:cover;"></video>`;
+                } else if(m.media_type === 'url') {
+                    cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
+                } else {
+                    cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
+                }
             } else {
-                document.getElementById('ui-box').innerHTML = `<h2>NEHAS SIGNAGE</h2><p>Linked. Add media to begin.</p>`;
+                document.getElementById('ui-box').innerHTML = `
+                    <div class="brand-eng">NEHAS SIGNAGE</div>
+                    <div class="brand-am">ነሃስ ማስታወቂያ</div>
+                    <p style="color:#3b82f6;">Linked & Standby</p>
+                    <p class="instruction">Add content from your dashboard to begin broadcasting.</p>
+                `;
             }
         }
 
