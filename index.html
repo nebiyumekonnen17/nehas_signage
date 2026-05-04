@@ -14,10 +14,11 @@
         .main { flex: 1; padding: 50px; overflow-y: auto; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; }
         .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        input, select, button { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
+        input[type="text"], select, button, input[type="file"] { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
+        input[type="file"] { background: #f1f5f9; cursor: pointer; }
         button { background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { filter: brightness(1.1); transform: translateY(-2px); }
-        .status { margin-top: 15px; text-align: center; font-weight: bold; min-height: 20px; }
+        .status { margin-top: 15px; text-align: center; font-weight: bold; min-height: 20px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -36,29 +37,31 @@
         <div class="grid">
             <div class="card" style="border-top: 5px solid #3b82f6;">
                 <h3 style="margin-top:0;">1. Link New Display</h3>
-                <input type="text" id="p-code" placeholder="6-Digit TV Code" maxlength="6" style="text-align:center; font-family:monospace; font-size:24px; letter-spacing:5px;">
-                <input type="text" id="p-name" placeholder="Display Name (e.g. Lobby)">
+                <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Enter the 6-digit code shown on the TV.</p>
+                <input type="text" id="p-code" placeholder="000000" maxlength="6" style="text-align:center; font-family:monospace; font-size:24px; letter-spacing:5px;">
+                <input type="text" id="p-name" placeholder="Display Name (e.g. Office Lobby)">
                 <button onclick="pairTV()">Pair Device</button>
                 <div id="status-pair" class="status"></div>
             </div>
 
             <div class="card" style="border-top: 5px solid #10b981;">
-                <h3 style="margin-top:0;">2. Save Media to Library</h3>
-                <input type="text" id="m-url" placeholder="Direct File URL (.jpg, .mp4)">
-                <select id="m-type">
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
-                </select>
-                <button onclick="saveMedia()" style="background:#10b981;">Save to Library</button>
-                <div id="status-media" class="status"></div>
+                <h3 style="margin-top:0;">2. Upload Image (Computer)</h3>
+                <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Upload image files directly to your cloud storage.</p>
+                <input type="file" id="img-file" accept="image/*">
+                <button onclick="uploadImage()" style="background:#10b981;">Save to Library</button>
+                <div id="status-img" class="status"></div>
             </div>
 
             <div class="card" style="border-top: 5px solid #ef4444;">
-                <h3 style="margin-top:0;">3. Quick Deploy: YouTube</h3>
-                <input type="text" id="yt-url" placeholder="YouTube URL (or embed link)">
-                <select id="yt-screen"><option value="">Loading screens...</option></select>
-                <button onclick="deployYouTube()" style="background:#ef4444;">Push to Screen</button>
-                <div id="status-yt" class="status"></div>
+                <h3 style="margin-top:0;">3. Add Video (Via Link)</h3>
+                <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Save storage by linking direct MP4s or YouTube videos.</p>
+                <input type="text" id="vid-url" placeholder="Paste Video URL or YouTube Link">
+                <select id="vid-type">
+                    <option value="video">Direct Video File (.mp4)</option>
+                    <option value="url">YouTube Video</option>
+                </select>
+                <button onclick="saveVideo()" style="background:#ef4444;">Save to Library</button>
+                <div id="status-vid" class="status"></div>
             </div>
         </div>
     </div>
@@ -68,72 +71,92 @@
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        async function loadScreens() {
-            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
-            const select = document.getElementById('yt-screen');
-            if(data && data.length > 0) {
-                select.innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-            } else {
-                select.innerHTML = `<option value="">No paired screens</option>`;
-            }
-        }
-
+        // --- 1. PAIRING LOGIC ---
         async function pairTV() {
             const code = document.getElementById('p-code').value.trim();
             const name = document.getElementById('p-name').value.trim();
             const status = document.getElementById('status-pair');
+            
             if(!code || !name) return status.innerText = "Fill all fields.";
             
-            status.style.color = "#3b82f6"; status.innerText = "Searching...";
+            status.style.color = "#3b82f6"; 
+            status.innerText = "Searching for TV...";
+            
             const { data } = await sbClient.from('screens').select('*').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
 
             if (data) {
                 await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
-                status.style.color = "#10b981"; status.innerText = "Success! TV Linked.";
-                loadScreens(); // Update dropdown
+                status.style.color = "#10b981"; 
+                status.innerText = "Success! TV Linked.";
+                document.getElementById('p-code').value = '';
+                document.getElementById('p-name').value = '';
             } else {
-                status.style.color = "#ef4444"; status.innerText = "Invalid Code.";
+                status.style.color = "#ef4444"; 
+                status.innerText = "Invalid Code or TV offline.";
             }
         }
 
-        async function saveMedia() {
-            const url = document.getElementById('m-url').value.trim();
-            const type = document.getElementById('m-type').value;
-            const status = document.getElementById('status-media');
-            if(!url) return status.innerText = "Provide a URL.";
+        // --- 2. IMAGE UPLOAD LOGIC ---
+        async function uploadImage() {
+            const fileInput = document.getElementById('img-file');
+            const file = fileInput.files[0];
+            const status = document.getElementById('status-img');
 
-            const { error } = await sbClient.from('media').insert([{ file_url: url, media_type: type }]);
-            if(!error) {
-                status.style.color = "#10b981"; status.innerText = "Saved to Library!";
-                document.getElementById('m-url').value = '';
-            }
-        }
-
-        async function deployYouTube() {
-            let url = document.getElementById('yt-url').value.trim();
-            const screenId = document.getElementById('yt-screen').value;
-            const status = document.getElementById('status-yt');
-            if(!url || !screenId) return status.innerText = "Provide URL and select screen.";
-
-            // Convert standard YT link to embed link for iframe
-            if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0";
-            if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0";
-
-            status.style.color = "#3b82f6"; status.innerText = "Deploying...";
-
-            // Save to media table as URL type
-            const { data: media } = await sbClient.from('media').insert([{ file_url: url, media_type: 'url' }]).select();
+            if(!file) return status.innerText = "Please select an image file.";
             
-            if(media && media[0]) {
-                // Clear old playlist for this screen and assign new
-                await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
-                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: media[0].id }]);
-                status.style.color = "#10b981"; status.innerText = "YouTube Deployed!";
-                document.getElementById('yt-url').value = '';
+            status.style.color = "#3b82f6"; 
+            status.innerText = "Uploading to cloud...";
+
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_nehas.${fileExt}`;
+
+            // Upload to 'media' bucket
+            const { error: uploadError } = await sbClient.storage.from('media').upload(fileName, file);
+
+            if (uploadError) {
+                status.style.color = "#ef4444";
+                return status.innerText = "Upload failed. Did you create the public 'media' bucket?";
+            }
+
+            // Get Public URL
+            const { data: urlData } = sbClient.storage.from('media').getPublicUrl(fileName);
+
+            // Save to Library DB
+            const { error: dbError } = await sbClient.from('media').insert([{ file_url: urlData.publicUrl, media_type: 'image' }]);
+
+            if(!dbError) {
+                status.style.color = "#10b981"; 
+                status.innerText = "Image Saved to Library!";
+                fileInput.value = ''; 
             }
         }
 
-        window.onload = loadScreens;
+        // --- 3. VIDEO LINK LOGIC ---
+        async function saveVideo() {
+            let url = document.getElementById('vid-url').value.trim();
+            const type = document.getElementById('vid-type').value;
+            const status = document.getElementById('status-vid');
+            
+            if(!url) return status.innerText = "Provide a video URL.";
+
+            status.style.color = "#3b82f6"; 
+            status.innerText = "Saving format...";
+
+            // Auto-format YouTube links to embeds
+            if (type === 'url') {
+                if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0&mute=1";
+                if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0&mute=1";
+            }
+
+            // Save to Library DB
+            const { error } = await sbClient.from('media').insert([{ file_url: url, media_type: type }]);
+            
+            if(!error) {
+                status.style.color = "#10b981"; 
+                status.innerText = "Video Saved to Library!";
+                document.getElementById('vid-url').value = '';
+            }
+        }
     </script>
 </body>
 </html>
