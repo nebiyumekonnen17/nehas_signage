@@ -1,41 +1,62 @@
-<script>
-    async function pairTV() {
-        const codeInput = document.getElementById('p-code').value.trim();
-        const displayName = document.getElementById('p-name').value.trim();
-        const statusEl = document.getElementById('p-status');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nehas Admin | Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #f8fafc; display: flex; height: 100vh; }
+        .main { flex: 1; padding: 50px; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); max-width: 400px; }
+        input, button { width: 100%; padding: 15px; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 16px; box-sizing: border-box; }
+        button { background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; }
+        #status { margin-top: 15px; font-weight: bold; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="main">
+        <h1>Nehas Signage Control</h1>
+        <div class="card">
+            <h3>Link New Display</h3>
+            <input type="text" id="p-code" placeholder="Enter 6-digit Code" maxlength="6">
+            <input type="text" id="p-name" placeholder="Display Name (e.g. Lobby)">
+            <button onclick="pairDevice()">Link TV Now</button>
+            <div id="status"></div>
+        </div>
+    </div>
 
-        if(!codeInput || !displayName) {
-            statusEl.innerText = "Error: Fill all fields.";
-            return;
-        }
+    <script>
+        const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
+        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFተIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
+        const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        // STEP 1: Query database for the code
-        const { data: screenRecord, error } = await sbClient
-            .from('screens')
-            .select('*')
-            .eq('pairing_code', codeInput)
-            .eq('is_paired', false)
-            .maybeSingle();
+        async function pairDevice() {
+            const code = document.getElementById('p-code').value.trim();
+            const name = document.getElementById('p-name').value.trim();
+            const status = document.getElementById('status');
 
-        if (screenRecord) {
-            // STEP 2: If found, update it to paired
-            const { error: upError } = await sbClient
-                .from('screens')
-                .update({ 
-                    name: displayName, 
+            status.innerText = "Searching for TV...";
+            
+            // Search DB for that specific code
+            const { data: screen } = await sbClient.from('screens').select('*').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
+
+            if (screen) {
+                // If found, update it to paired
+                const { error } = await sbClient.from('screens').update({ 
+                    name: name, 
                     is_paired: true, 
                     pairing_code: null 
-                })
-                .eq('id', screenRecord.id);
+                }).eq('id', screen.id);
 
-            if(!upError) {
-                statusEl.style.color = "#10b981";
-                statusEl.innerText = "Success! Display Linked.";
-                loadScreens();
+                if(!error) {
+                    status.style.color = "green";
+                    status.innerText = "Success! TV Linked.";
+                }
+            } else {
+                status.style.color = "red";
+                status.innerText = "Invalid Code. Make sure the TV is on.";
             }
-        } else {
-            statusEl.style.color = "#ef4444";
-            statusEl.innerText = "Invalid Code. (Code not found in DB)";
         }
-    }
-</script>
+    </script>
+</body>
+</html>
