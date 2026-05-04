@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Nehas Player | Ultra-Blur Edition</title>
+    <title>Nehas Player | Crystal Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: sans-serif; }
@@ -12,7 +12,7 @@
             width: 100%; 
             height: 100%; 
             background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; 
-            filter: brightness(0.55); 
+            filter: brightness(0.6); /* Brighter to ensure colors bleed through the 80px blur */
             z-index: 1; 
             opacity: 0; 
             transition: opacity 2s ease-in-out; 
@@ -29,20 +29,18 @@
         }
 
         .glass-card { 
-            /* Background remains transparent (0.4) to let light through */
-            background: rgba(15, 23, 42, 0.4); 
-            /* Ultra-Blur set to 60px */
-            backdrop-filter: blur(60px); 
-            -webkit-backdrop-filter: blur(60px);
-            padding: 60px; 
-            border-radius: 40px; 
-            border: 1px solid rgba(59, 130, 246, 0.3); 
+            background: rgba(15, 23, 42, 0.35); /* Slightly lighter to allow more light dispersion */
+            backdrop-filter: blur(80px); /* Max Blur at 80px */
+            -webkit-backdrop-filter: blur(80px);
+            padding: 70px 90px; 
+            border-radius: 50px; 
+            border: 1px solid rgba(59, 130, 246, 0.35); 
             text-align: center; 
             color: white; 
-            box-shadow: 0 30px 100px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7);
             opacity: 0; 
-            transform: translateY(30px);
-            transition: opacity 1.5s ease-out, transform 1.5s ease-out;
+            transform: translateY(40px);
+            transition: opacity 2s cubic-bezier(0.16, 1, 0.3, 1), transform 2s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .glass-card.reveal {
@@ -50,18 +48,18 @@
             transform: translateY(0);
         }
 
-        .brand-am { font-size: 1.5rem; color: #94a3b8; margin: 10px 0; letter-spacing: 2px; font-weight: 300; }
-        .code { font-size: 8rem; font-weight: 900; margin: 15px 0; font-family: monospace; color: #fff; text-shadow: 0 0 50px rgba(59, 130, 246, 0.6); letter-spacing: 5px; }
-        #log { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.6; }
+        .brand-am { font-size: 1.6rem; color: #cbd5e1; margin: 15px 0; letter-spacing: 3px; font-weight: 300; }
+        .code { font-size: 8.5rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); letter-spacing: 8px; }
+        #log { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.5; }
     </style>
 </head>
 <body>
     <div id="bg"></div>
     <div id="media-container">
         <div class="glass-card" id="ui-box">
-            <h2 id="ui-header" style="letter-spacing:8px; color:#3b82f6; margin-bottom: 5px; font-weight: 900;">NEHAS SIGNAGE</h2>
+            <h2 id="ui-header" style="letter-spacing:10px; color:#3b82f6; margin-bottom: 5px; font-weight: 900; font-size: 2rem;">NEHAS SIGNAGE</h2>
             <div class="brand-am">ነሃስ ማስታወቂያ</div>
-            <div id="ui-content">System Initializing...</div>
+            <div id="ui-content" style="font-size: 1.2rem; opacity: 0.7; margin-top: 10px;">Initializing...</div>
         </div>
     </div>
     <div id="log">OS_STATUS: <span id="status-text">BOOTING</span></div>
@@ -78,8 +76,8 @@
             const bg = document.getElementById('bg');
             const ui = document.getElementById('ui-box');
 
-            setTimeout(() => { bg.style.opacity = "1"; }, 300);
-            setTimeout(() => { ui.classList.add('reveal'); }, 1500);
+            setTimeout(() => { bg.style.opacity = "1"; }, 400);
+            setTimeout(() => { ui.classList.add('reveal'); }, 1800);
             
             if (SCREEN_ID && SAVED_CODE) {
                 try {
@@ -116,7 +114,7 @@
         function showPairingUI(code) {
             document.getElementById('ui-content').innerHTML = `
                 <div class="code">${code}</div>
-                <p style="opacity: 0.8; font-size: 1.1rem;">Link this TV in your dashboard to begin.</p>
+                <p style="opacity: 0.9; font-size: 1.2rem;">Link display in dashboard to begin.</p>
             `;
         }
 
@@ -137,7 +135,7 @@
                 else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
                 else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
             } else {
-                document.getElementById('ui-content').innerHTML = `<p style="font-size: 1.2rem;">Linked & Ready.</p>`;
+                document.getElementById('ui-content').innerHTML = `<p style="font-size: 1.4rem; color: #3b82f6;">Ready for deployment.</p>`;
             }
         }
 
