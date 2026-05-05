@@ -32,13 +32,11 @@
         dialog { border: none; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
         dialog::backdrop { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px); }
         
-        /* Assign Modal specific */
         #assign-modal { width: 400px; }
         .screen-checkbox { display: flex; align-items: center; padding: 12px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px; cursor: pointer; border: 1px solid #e2e8f0; transition: 0.2s; }
         .screen-checkbox:hover { background: #e2e8f0; }
         .screen-checkbox input { margin-right: 15px; width: 20px; height: 20px; cursor: pointer; }
         
-        /* Preview Modal specific */
         #preview-modal { width: 800px; max-width: 90vw; text-align: center; background: #0f172a; color: white; padding: 20px; }
         #preview-container { width: 100%; height: 500px; background: #000; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
         #preview-container img, #preview-container video, #preview-container iframe { width: 100%; height: 100%; object-fit: contain; border: none; }
@@ -75,9 +73,7 @@
     <dialog id="assign-modal">
         <h2 style="margin-top:0;">Deploy to Screens</h2>
         <p style="color:#64748b;">Select which TVs should play this media.</p>
-        <div id="screen-checkboxes">
-            <p style="color:#94a3b8;">Loading screens...</p>
-        </div>
+        <div id="screen-checkboxes"><p style="color:#94a3b8;">Loading screens...</p></div>
         <div class="modal-buttons">
             <button style="background: #e2e8f0; color: #475569;" onclick="closeAssignModal()">Cancel</button>
             <button id="btn-confirm" style="background: #10b981; color: white;" onclick="confirmAssignment()">Push to TVs</button>
@@ -96,31 +92,40 @@
             const grid = document.getElementById('library-grid');
             
             if(data && data.length > 0) {
-                grid.innerHTML = data.map(m => `
-                    <div class="media-card">
-                        ${m.media_type === 'image' ? `<img src="${m.file_url}" class="media-preview-box">` : 
-                          m.media_type === 'video' ? `<video src="${m.file_url}" class="media-preview-box" muted></video>` : 
-                          `<div class="media-preview-box">YOUTUBE VIDEO</div>`}
-                        
-                        <div class="media-info">
-                            <h4 title="${m.file_name || 'Unnamed File'}">${m.file_name || 'Unnamed File'}</h4>
-                            <p>${m.media_type}</p>
-                        </div>
+                grid.innerHTML = data.map(m => {
+                    // Safe string formatting for HTML injection
+                    const safeName = m.file_name ? m.file_name.replace(/"/g, '&quot;') : 'Unnamed File';
+                    
+                    return `
+                        <div class="media-card">
+                            ${m.media_type === 'image' ? `<img src="${m.file_url}" class="media-preview-box">` : 
+                              m.media_type === 'video' ? `<video src="${m.file_url}" class="media-preview-box" muted></video>` : 
+                              `<div class="media-preview-box">YOUTUBE VIDEO</div>`}
+                            
+                            <div class="media-info">
+                                <h4 title="${safeName}">${safeName}</h4>
+                                <p>${m.media_type}</p>
+                            </div>
 
-                        <div class="media-actions">
-                            <button class="btn-preview" onclick="openPreview('${m.file_url}', '${m.media_type}')">Preview Media</button>
-                            <button class="btn-assign" onclick="openAssignModal(${m.id})">Assign to Screens</button>
-                            <button class="btn-delete" onclick="deleteMedia(${m.id})">Delete from Library</button>
+                            <div class="media-actions">
+                                <button class="btn-preview" data-url="${m.file_url}" data-type="${m.media_type}" onclick="openPreview(this)">Preview Media</button>
+                                <button class="btn-assign" onclick="openAssignModal(${m.id})">Assign to Screens</button>
+                                <button class="btn-delete" onclick="deleteMedia(${m.id})">Delete from Library</button>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             } else {
                 grid.innerHTML = "<p style='color:#64748b;'>Your library is empty. Upload media via the Dashboard Hub.</p>";
             }
         }
 
         // --- PREVIEW LOGIC ---
-        function openPreview(url, type) {
+        function openPreview(buttonElement) {
+            // Pull data from attributes so special characters don't break JS
+            const url = buttonElement.getAttribute('data-url');
+            const type = buttonElement.getAttribute('data-type');
+            
             const container = document.getElementById('preview-container');
             if (type === 'image') {
                 container.innerHTML = `<img src="${url}">`;
@@ -146,9 +151,7 @@
 
             const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
             
-            if (error) {
-                return container.innerHTML = `<p style="color:red;">Database Error: ${error.message}</p>`;
-            }
+            if (error) return container.innerHTML = `<p style="color:red;">Database Error: ${error.message}</p>`;
 
             if(data && data.length > 0) {
                 container.innerHTML = data.map(s => `
@@ -179,22 +182,13 @@
             try {
                 for (let box of checkboxes) {
                     const screenId = box.value;
-                    
-                    // 1. Delete old playlist item
-                    const { error: delErr } = await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
-                    if (delErr) throw new Error("Delete old media failed: " + delErr.message);
-
-                    // 2. Insert new playlist item
-                    const { error: insErr } = await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
-                    if (insErr) throw new Error("Insert new media failed: " + insErr.message);
+                    await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
+                    await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
                 }
-
                 closeAssignModal();
                 alert(`Success! Content pushed to ${checkboxes.length} screen(s).`);
-
             } catch (err) {
                 alert("DATABASE BLOCKED ACTION: \n\n" + err.message);
-                console.error(err);
             } finally {
                 confirmBtn.innerText = "Push to TVs";
                 confirmBtn.disabled = false;
@@ -205,19 +199,11 @@
         async function deleteMedia(id) {
             if(confirm("Permanently delete this media? It will instantly be removed from any TVs currently displaying it.")) {
                 try {
-                    // 1. Remove from active playlists
-                    const { error: pErr } = await sbClient.from('playlist_items').delete().eq('media_id', id);
-                    if(pErr) throw new Error("Clear Playlist Failed: " + pErr.message);
-                    
-                    // 2. Remove from library
-                    const { error: mErr } = await sbClient.from('media').delete().eq('id', id);
-                    if(mErr) throw new Error("Delete Media Failed: " + mErr.message);
-                    
+                    await sbClient.from('playlist_items').delete().eq('media_id', id);
+                    await sbClient.from('media').delete().eq('id', id);
                     loadLibrary(); 
-                    alert("Media successfully deleted.");
                 } catch (err) {
                     alert("DATABASE BLOCKED ACTION: \n\n" + err.message);
-                    console.error(err);
                 }
             }
         }
