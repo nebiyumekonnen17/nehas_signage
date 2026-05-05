@@ -3,300 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <title>Nehas Player | TV Display</title>
-    
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: 'Inter', sans-serif; cursor: default; }
-        #bg { position: fixed; width: 100%; height: 100%; background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; filter: brightness(0.5); z-index: 1; transition: opacity 1s ease; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; }
         #media-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; background: #000; }
-        
-        .glass-card { background: rgba(15, 23, 42, 0.2); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); padding: 60px 80px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.15); text-align: center; color: white; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5); transition: opacity 0.5s ease; }
-        .brand-eng { font-size: 2rem; letter-spacing: 10px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; }
-        .brand-am { font-size: 1.6rem; color: #cbd5e1; margin-bottom: 25px; letter-spacing: 3px; font-weight: 300; }
-        .code { font-size: 8rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); letter-spacing: 10px; }
-        #status { position: fixed; bottom: 15px; left: 20px; font-size: 12px; color: #3b82f6; font-family: monospace; opacity: 0.7; z-index: 999; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; }
+        .glass-card { background: rgba(15, 23, 42, 0.9); padding: 60px; border-radius: 40px; text-align: center; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; border: 1px solid rgba(255,255,255,0.1); }
+        .brand-eng { font-size: 2rem; font-weight: 900; color: #3b82f6; margin-bottom: 5px; letter-spacing: 5px; }
+        .brand-am { font-size: 1.5rem; color: #cbd5e1; margin-bottom: 20px; }
+        #status { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; opacity: 0.6; z-index: 999; font-family: monospace; }
     </style>
 </head>
 <body>
-    <div id="bg"></div>
     <div id="media-container"></div>
-    
-    <div class="glass-card" id="ui-box" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;">
+    <div class="glass-card" id="ui-box">
         <div class="brand-eng">NEHAS SIGNAGE</div>
         <div class="brand-am">ነሃስ ማስታወቂያ</div>
-        <div id="ui-content" style="color:#94a3b8; font-size: 1.2rem;">Booting System...</div>
+        <div id="ui-content" style="font-size: 1.1rem; color: #94a3b8;">Connecting to Cloud...</div>
     </div>
-    
-    <div id="status">OS_STATUS: <span id="log-text">INITIALIZING</span></div>
+    <div id="status">SYS_LOG: <span id="log-text">INIT</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         
-        // Reverted to the safe, standard client
         const sbClient = supabase.createClient(S_URL, S_KEY);
-        
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         let currentPlaylist = [];
-        let currentIndex = -1; 
-        let lastPlaylistSignature = ""; 
-        let playbackTimer = null;
-        let activeObjectUrl = null; 
+        let currentIndex = -1;
+        let lastSignature = "";
 
-        function updateLog(msg) { document.getElementById('log-text').innerText = msg; }
+        function updateLog(m) { document.getElementById('log-text').innerText = m; }
 
         async function boot() {
-            updateLog("CHECKING ID...");
-            if (SCREEN_ID) {
-                const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID);
-                if (data && data.length > 0 && data[0].is_paired) {
-                    startHeartbeat();
-                    return startSyncEngine();
+            updateLog("STARTING_BOOT");
+            try {
+                if (SCREEN_ID) {
+                    const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
+                    if (data && data.is_paired) {
+                        updateLog("ID_VERIFIED");
+                        return startEngine();
+                    }
                 }
+                register();
+            } catch (e) {
+                document.getElementById('ui-content').innerHTML = `<span style="color:red">Boot Error: ${e.message}</span>`;
             }
-            register();
         }
 
         async function register() {
-            updateLog("GENERATING PAIRING CODE");
+            updateLog("REGISTERING_NEW_TV");
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            const { data } = await sbClient.from('screens').insert([{ name: 'New Display', pairing_code: code, is_paired: false }]).select();
+            const { data, error } = await sbClient.from('screens').insert([{ name: 'New TV', pairing_code: code, is_paired: false }]).select();
 
-            if (data && data.length > 0) {
+            if (data && data[0]) {
                 SCREEN_ID = data[0].id;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
-                document.getElementById('ui-content').innerHTML = `<div class="code">${code}</div><p>Enter this code in your Dashboard to pair.</p><p style="font-size:14px; margin-top:20px;">(Click anywhere on screen to enter Fullscreen Mode)</p>`;
+                document.getElementById('ui-content').innerHTML = `<div style="font-size:5rem; font-weight:bold; color:white; margin:20px 0;">${code}</div><p>Enter code in Dashboard to pair.</p>`;
                 
-                const pairCheck = setInterval(async () => {
-                    // Added a cache-busting timestamp to the query to force live data
-                    const { data: sData } = await sbClient.from('screens').select('is_paired').eq('id', SCREEN_ID).neq('pairing_code', Date.now().toString());
-                    if (sData && sData.length > 0 && sData[0].is_paired) {
-                        clearInterval(pairCheck);
-                        startHeartbeat();
-                        startSyncEngine();
-                    }
-                }, 3000);
+                setInterval(async () => {
+                    const { data: s } = await sbClient.from('screens').select('is_paired').eq('id', SCREEN_ID).maybeSingle();
+                    if (s && s.is_paired) location.reload();
+                }, 5000);
             }
         }
 
-        // --- HEARTBEAT MONITOR ---
-        function startHeartbeat() {
-            setInterval(async () => {
-                await sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
-            }, 15000);
-        }
-
-        // --- MASTER ENGINE ---
-        function startSyncEngine() {
-            fetchPlaylist(); 
-            setInterval(fetchPlaylist, 10000); 
+        function startEngine() {
+            fetchPlaylist();
+            setInterval(fetchPlaylist, 10000);
+            // Heartbeat
+            setInterval(() => sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID), 20000);
         }
 
         async function fetchPlaylist() {
-            try {
-                // The .neq() acts as a harmless query parameter that forces the browser not to cache the result
-                const { data: playlistData, error: pError } = await sbClient
-                    .from('playlist_items')
-                    .select('id, duration, display_order, start_time, end_time, media(*)')
-                    .eq('screen_id', SCREEN_ID)
-                    .neq('display_order', Date.now()) 
-                    .order('display_order', { ascending: true });
-
-                if (pError) throw pError;
-
-                const newSignature = playlistData ? playlistData.map(p => p.id).join(',') : "";
-
-                if (newSignature !== lastPlaylistSignature) {
-                    updateLog("PLAYLIST UPDATED - SYNCING CACHE...");
-                    currentPlaylist = playlistData || [];
-                    lastPlaylistSignature = newSignature;
-                    
-                    await manageOfflineCache(currentPlaylist);
-                    
-                    currentIndex = -1;
-                    playNext(0); 
-                }
-
-            } catch (err) { console.error("Sync Error:", err); }
-        }
-
-        // --- OFFLINE CACHE (WITH TV SAFETY FALLBACK) ---
-        async function manageOfflineCache(playlist) {
-            // Safety Check: If the TV browser is too old, just skip caching and stream it live
-            if (!('caches' in window)) {
-                console.warn("Offline caching not supported on this device.");
-                return;
-            }
-
-            try {
-                const cache = await caches.open('nehas-media-cache');
-                const cacheKeys = await cache.keys();
-                
-                const validUrls = playlist
-                    .filter(item => item.media && item.media.media_type !== 'url')
-                    .map(item => item.media.file_url);
-
-                for (let req of cacheKeys) {
-                    if (!validUrls.includes(req.url)) {
-                        await cache.delete(req);
-                        console.log("Deleted from cache (Saved Space):", req.url);
-                    }
-                }
-
-                for (let url of validUrls) {
-                    const match = await cache.match(url);
-                    if (!match) {
-                        console.log("Downloading to cache:", url);
-                        try { await cache.add(url); } catch(e) { console.warn("Cache block on:", url); }
-                    }
-                }
-            } catch (err) { console.error("Cache Manager Error:", err); }
-        }
-
-        async function getLocalMediaUrl(url) {
-            if (!('caches' in window)) return url; // Fallback for older TVs
-
-            try {
-                const cache = await caches.open('nehas-media-cache');
-                const response = await cache.match(url);
-                if (response) {
-                    const blob = await response.blob();
-                    return URL.createObjectURL(blob);
-                }
-            } catch (err) { console.error("Failed to load local blob", err); }
-            return url; 
-        }
-
-        // --- HARDWARE MEDIA CLEANUP ---
-        function clearCurrentMedia() {
-            const oldVid = document.getElementById('nehas-vid');
-            if (oldVid) {
-                oldVid.pause();
-                oldVid.removeAttribute('src');
-                oldVid.load(); 
-            }
-            if (activeObjectUrl) {
-                URL.revokeObjectURL(activeObjectUrl);
-                activeObjectUrl = null;
-            }
-            document.getElementById('media-container').innerHTML = '';
-        }
-
-        // --- DAYPARTING (TIME CHECK) ---
-        function isTimeAllowed(startStr, endStr) {
-            if (!startStr || !endStr) return true;
-            const now = new Date();
-            const currentMins = now.getHours() * 60 + now.getMinutes();
+            const { data } = await sbClient.from('playlist_items').select('id, duration, media(*)').eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
+            const sig = data ? data.map(p => p.id).join(',') : "";
             
-            const [sH, sM] = startStr.split(':').map(Number);
-            const [eH, eM] = endStr.split(':').map(Number);
-            const startMins = sH * 60 + sM;
-            const endMins = eH * 60 + eM;
-
-            if (startMins <= endMins) {
-                return currentMins >= startMins && currentMins <= endMins;
-            } else {
-                return currentMins >= startMins || currentMins <= endMins;
+            if (sig !== lastSignature) {
+                updateLog("SYNCING_PLAYLIST");
+                currentPlaylist = data || [];
+                lastSignature = sig;
+                currentIndex = -1;
+                playNext();
             }
         }
 
-        function showWaitingScreen(message) {
-            clearCurrentMedia();
-            document.getElementById('ui-box').style.opacity = "1";
-            document.getElementById('bg').style.opacity = "1";
-            document.getElementById('ui-content').innerHTML = `<p style="color:#3b82f6; font-weight:bold;">${message}</p>`;
-        }
-
-        async function playNext(loopCount = 0) {
-            clearTimeout(playbackTimer); 
-            
+        function playNext() {
             if (currentPlaylist.length === 0) {
-                updateLog("PLAYLIST EMPTY - WAITING");
-                return showWaitingScreen("Successfully Paired. Waiting for media...");
-            }
-
-            if (loopCount >= currentPlaylist.length) {
-                updateLog("ALL SCHEDULED FOR LATER");
-                showWaitingScreen("Media scheduled for later. Waiting...");
-                playbackTimer = setTimeout(() => playNext(0), 10000); 
+                updateLog("EMPTY_QUEUE");
+                document.getElementById('ui-box').style.display = "block";
+                document.getElementById('media-container').innerHTML = "";
+                document.getElementById('ui-content').innerText = "Waiting for media...";
                 return;
             }
 
-            currentIndex++;
-            if (currentIndex >= currentPlaylist.length) currentIndex = 0;
-
+            currentIndex = (currentIndex + 1) >= currentPlaylist.length ? 0 : currentIndex + 1;
             const item = currentPlaylist[currentIndex];
-
-            if (!isTimeAllowed(item.start_time, item.end_time)) {
-                updateLog(`SKIPPING [${currentIndex + 1}]: OFF SCHEDULE`);
-                return playNext(loopCount + 1); 
-            }
-
-            renderMedia(item);
+            render(item);
         }
 
-        async function renderMedia(item) {
-            clearCurrentMedia(); 
-            
-            const media = item.media;
-            updateLog(`PLAYING [${currentIndex + 1}/${currentPlaylist.length}]: ${media.media_type.toUpperCase()}`);
-
-            document.getElementById('bg').style.opacity = "0";
-            document.getElementById('ui-box').style.opacity = "0";
+        function render(item) {
+            updateLog(`PLAYING_${item.media.media_type.toUpperCase()}`);
+            document.getElementById('ui-box').style.display = "none";
             const cont = document.getElementById('media-container');
-
-            if (media.media_type === 'image') {
-                const localSrc = await getLocalMediaUrl(media.file_url);
-                activeObjectUrl = localSrc; 
-                cont.innerHTML = `<img src="${localSrc}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
-                playbackTimer = setTimeout(() => playNext(0), (item.duration || 10) * 1000);
-
-            } else if (media.media_type === 'video') {
-                const localSrc = await getLocalMediaUrl(media.file_url);
-                activeObjectUrl = localSrc;
-                cont.innerHTML = `<video id="nehas-vid" src="${localSrc}" autoplay muted style="width:100%;height:100%;object-fit:cover;"></video>`;
-                
-                document.getElementById('nehas-vid').onended = () => playNext(0);
-                document.getElementById('nehas-vid').onerror = () => playNext(0);
-
-            } else if (media.media_type === 'url') {
-                let ytUrl = media.file_url;
-                if (!ytUrl.includes('enablejsapi=1')) ytUrl += '&enablejsapi=1';
-
-                cont.innerHTML = `<iframe id="nehas-yt" src="${ytUrl}" style="width:100%;height:100%;border:none;" allow="autoplay" allowfullscreen></iframe>`;
-
-                setTimeout(() => {
-                    new YT.Player('nehas-yt', {
-                        events: {
-                            'onStateChange': function(event) {
-                                if (event.data === 0) playNext(0);
-                            },
-                            'onError': () => playNext(0) 
-                        }
-                    });
-                }, 500);
+            
+            if (item.media.media_type === 'image') {
+                cont.innerHTML = `<img src="${item.media.file_url}" style="max-width:100%; max-height:100%; object-fit:contain">`;
+                setTimeout(playNext, (item.duration || 10) * 1000);
+            } else if (item.media.media_type === 'video') {
+                cont.innerHTML = `<video id="v" src="${item.media.file_url}" autoplay muted style="width:100%; height:100%; object-fit:cover"></video>`;
+                document.getElementById('v').onended = playNext;
+            } else if (item.media.media_type === 'url') {
+                cont.innerHTML = `<iframe src="${item.media.file_url}&enablejsapi=1&autoplay=1&mute=1" style="width:100%; height:100%; border:none"></iframe>`;
+                // YouTube looping requires API, skipping complexity for now to ensure boot
+                setTimeout(playNext, 30000); 
             }
         }
-
-        // --- FULLSCREEN LOCK ---
-        document.addEventListener('click', function() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
-                });
-            }
-        });
-
-        document.addEventListener('keydown', function(e) {
-            if (e.key !== 'F11' && e.key !== 'Escape') {
-                e.preventDefault(); 
-            }
-        });
 
         window.onload = boot;
     </script>
