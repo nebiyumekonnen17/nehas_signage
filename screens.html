@@ -15,19 +15,21 @@
         .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
         .screen-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px; background: #f1f5f9; border-radius: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
         .screen-info { flex: 1; }
-        .screen-info h3 { margin: 0 0 5px 0; color: #1e293b; }
+        .screen-info h3 { margin: 0 0 5px 0; color: #1e293b; display: flex; align-items: center; gap: 10px; }
         
+        /* Dynamic Status Badges */
+        .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 1px; }
+        .status-online { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status-offline { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
         .playlist-box { margin-top: 15px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #cbd5e1; }
         .playlist-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; font-weight: bold; }
         .playlist-item:last-child { border-bottom: none; }
-        
         .btn-remove-item { background: #ef4444; color: white; border: none; border-radius: 5px; padding: 4px 8px; cursor: pointer; font-size: 11px; }
         .btn-remove-item:hover { background: #dc2626; }
-
         .screen-actions { display: flex; flex-direction: column; gap: 8px; margin-left: 20px; }
         .screen-actions button { padding: 10px 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; width: 100%; }
         .screen-actions button:hover { filter: brightness(0.9); }
-        
         .btn-edit { background: #e2e8f0; color: #475569; }
         .btn-del { background: #fee2e2; color: #ef4444; }
     </style>
@@ -59,7 +61,7 @@
             const list = document.getElementById('screen-list');
             
             const { data: screens } = await sbClient.from('screens').select('*').eq('is_paired', true);
-            const { data: playlists } = await sbClient.from('playlist_items').select('id, screen_id, media_id, duration').order('id', { ascending: true });
+            const { data: playlists } = await sbClient.from('playlist_items').select('id, screen_id, media_id, duration, start_time, end_time').order('display_order', { ascending: true });
             const { data: allMedia } = await sbClient.from('media').select('id, file_name, media_type');
             
             if(screens && screens.length > 0) {
@@ -67,7 +69,18 @@
                     const safeNameForJS = s.name ? s.name.replace(/'/g, "\\'") : 'Unnamed';
                     const safeNameForHTML = s.name ? s.name.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 'Unnamed';
 
-                    // Get all items queued for this screen
+                    // HEARTBEAT LOGIC: Check if pinged in the last 30 seconds
+                    let isOnline = false;
+                    if (s.last_seen) {
+                        const lastPing = new Date(s.last_seen).getTime();
+                        const now = new Date().getTime();
+                        if ((now - lastPing) < 30000) isOnline = true; // 30 seconds tolerance
+                    }
+                    
+                    const statusHtml = isOnline 
+                        ? `<span class="status-badge status-online">● ONLINE</span>` 
+                        : `<span class="status-badge status-offline">● OFFLINE</span>`;
+
                     const screenQueue = playlists?.filter(p => p.screen_id === s.id) || [];
                     let playlistHtml = "<p style='color:#ef4444; margin:0; font-size:13px; font-weight:bold;'>Playlist Empty</p>";
                     
@@ -77,9 +90,11 @@
                             if (mData) {
                                 const mName = mData.file_name ? mData.file_name.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 'Unnamed';
                                 const timeCode = mData.media_type === 'image' ? `(${item.duration}s)` : `(Auto)`;
+                                const schedCode = (item.start_time !== '00:00' || item.end_time !== '23:59') ? `[${item.start_time} - ${item.end_time}]` : ``;
+                                
                                 return `
                                     <div class="playlist-item">
-                                        <span style="color:#3b82f6;">${index + 1}. ${mName} <span style="color:#94a3b8; font-size:11px;">${timeCode}</span></span>
+                                        <span style="color:#3b82f6;">${index + 1}. ${mName} <span style="color:#94a3b8; font-size:11px;">${timeCode} <span style="color:#ea580c;">${schedCode}</span></span></span>
                                         <button class="btn-remove-item" onclick="removePlaylistItem('${item.id}')">X</button>
                                     </div>
                                 `;
@@ -91,8 +106,7 @@
                     return `
                         <div class="screen-item">
                             <div class="screen-info">
-                                <h3 style="margin-bottom:2px;">${safeNameForHTML}</h3>
-                                <span style="color:#10b981; font-size:12px; font-weight:bold;">● ONLINE</span>
+                                <h3>${safeNameForHTML} ${statusHtml}</h3>
                                 <div class="playlist-box">
                                     <div style="font-size:11px; color:#64748b; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px;">Current Playlist</div>
                                     ${playlistHtml}
@@ -110,7 +124,6 @@
             }
         }
 
-        // Deletes ONLY the specific video/image from the queue
         async function removePlaylistItem(playlistItemId) {
             await sbClient.from('playlist_items').delete().eq('id', playlistItemId);
             loadScreens(); 
@@ -133,6 +146,7 @@
         }
 
         window.onload = loadScreens;
+        setInterval(loadScreens, 15000); // Auto-refresh manager every 15 seconds to catch offline TVs
     </script>
 </body>
 </html>
