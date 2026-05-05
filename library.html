@@ -80,7 +80,7 @@
         </div>
         <div class="modal-buttons">
             <button style="background: #e2e8f0; color: #475569;" onclick="closeAssignModal()">Cancel</button>
-            <button style="background: #10b981; color: white;" onclick="confirmAssignment()">Push to TVs</button>
+            <button id="btn-confirm" style="background: #10b981; color: white;" onclick="confirmAssignment()">Push to TVs</button>
         </div>
     </dialog>
 
@@ -133,7 +133,6 @@
         }
 
         function closePreviewModal() {
-            // Clear inner HTML so videos/YouTube stop playing in the background
             document.getElementById('preview-container').innerHTML = '';
             document.getElementById('preview-modal').close();
         }
@@ -147,6 +146,10 @@
 
             const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
             
+            if (error) {
+                return container.innerHTML = `<p style="color:red;">Database Error: ${error.message}</p>`;
+            }
+
             if(data && data.length > 0) {
                 container.innerHTML = data.map(s => `
                     <label class="screen-checkbox">
@@ -155,7 +158,7 @@
                     </label>
                 `).join('');
             } else {
-                container.innerHTML = "<p style='color:#ef4444; font-weight:bold;'>No TVs are currently linked to your account.</p>";
+                container.innerHTML = "<p style='color:#ef4444; font-weight:bold;'>No TVs are currently linked.</p>";
             }
         }
 
@@ -169,38 +172,52 @@
             const checkboxes = document.querySelectorAll('.screen-check:checked');
             if(checkboxes.length === 0) return alert("Please select at least one TV to push to.");
 
-            let successCount = 0;
+            const confirmBtn = document.getElementById('btn-confirm');
+            confirmBtn.innerText = "Deploying...";
+            confirmBtn.disabled = true;
 
-            for (let box of checkboxes) {
-                const screenId = box.value;
-                // Clear old item first
-                await sbClient.from('playlist_items').delete().eq('screen_id', screenId); 
-                // Insert new item
-                const { error } = await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
-                if(!error) successCount++;
-            }
+            try {
+                for (let box of checkboxes) {
+                    const screenId = box.value;
+                    
+                    // 1. Delete old playlist item
+                    const { error: delErr } = await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
+                    if (delErr) throw new Error("Delete old media failed: " + delErr.message);
 
-            closeAssignModal();
-            if (successCount > 0) {
-                alert(`Success! The content has been pushed to ${successCount} screen(s).`);
-            } else {
-                alert("There was an error saving to the database. Make sure your TVs are still active.");
+                    // 2. Insert new playlist item
+                    const { error: insErr } = await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
+                    if (insErr) throw new Error("Insert new media failed: " + insErr.message);
+                }
+
+                closeAssignModal();
+                alert(`Success! Content pushed to ${checkboxes.length} screen(s).`);
+
+            } catch (err) {
+                alert("DATABASE BLOCKED ACTION: \n\n" + err.message);
+                console.error(err);
+            } finally {
+                confirmBtn.innerText = "Push to TVs";
+                confirmBtn.disabled = false;
             }
         }
 
         // --- DELETE LOGIC ---
         async function deleteMedia(id) {
             if(confirm("Permanently delete this media? It will instantly be removed from any TVs currently displaying it.")) {
-                // 1. Remove from active playlists so TVs don't break
-                await sbClient.from('playlist_items').delete().eq('media_id', id);
-                
-                // 2. Remove from library
-                const { error } = await sbClient.from('media').delete().eq('id', id);
-                
-                if(!error) {
+                try {
+                    // 1. Remove from active playlists
+                    const { error: pErr } = await sbClient.from('playlist_items').delete().eq('media_id', id);
+                    if(pErr) throw new Error("Clear Playlist Failed: " + pErr.message);
+                    
+                    // 2. Remove from library
+                    const { error: mErr } = await sbClient.from('media').delete().eq('id', id);
+                    if(mErr) throw new Error("Delete Media Failed: " + mErr.message);
+                    
                     loadLibrary(); 
-                } else {
-                    alert("Error deleting media. Please try again.");
+                    alert("Media successfully deleted.");
+                } catch (err) {
+                    alert("DATABASE BLOCKED ACTION: \n\n" + err.message);
+                    console.error(err);
                 }
             }
         }
