@@ -114,24 +114,21 @@
             const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
 
             try {
-                // 1. Upload to Cloudinary
                 const res = await fetch(url, { method: 'POST', body: formData });
                 const cloudData = await res.json();
 
                 if (cloudData.error) {
                     status.style.color = "#ef4444";
-                    console.error("Cloudinary Error:", cloudData.error);
                     return status.innerText = "Cloudinary Error: " + cloudData.error.message;
                 }
 
-                // 2. Save secure URL AND File Name to Supabase Library
                 const mediaType = cloudData.resource_type === 'video' ? 'video' : 'image';
                 
                 const { error: dbError } = await sbClient.from('media').insert([
                     { 
                         file_url: cloudData.secure_url, 
                         media_type: mediaType,
-                        file_name: file.name // Added this line to fix the database error!
+                        file_name: file.name 
                     }
                 ]);
 
@@ -147,27 +144,37 @@
             } catch (err) {
                 status.style.color = "#ef4444";
                 status.innerText = "Network Error. Check Console.";
-                console.error(err);
             }
         }
 
         async function saveYouTube() {
-            let url = document.getElementById('yt-url').value.trim();
+            let rawUrl = document.getElementById('yt-url').value.trim();
             let name = document.getElementById('yt-name').value.trim();
             const status = document.getElementById('status-yt');
             
-            if(!url || !name) return status.innerText = "Provide a YouTube URL and a Name.";
+            if(!rawUrl || !name) return status.innerText = "Provide a YouTube URL and a Name.";
 
             status.style.color = "#3b82f6"; 
             status.innerText = "Saving format...";
 
-            if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0&mute=1";
-            if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0&mute=1";
+            // Robust Extractor: Strips out tracking garbage and gets exact ID
+            let videoId = "";
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = rawUrl.match(regExp);
 
-            // Added file_name here as well
+            if (match && match[2].length === 11) {
+                videoId = match[2];
+            } else {
+                status.style.color = "#ef4444";
+                return status.innerText = "Invalid YouTube URL.";
+            }
+
+            // Build perfectly clean embedded URL
+            const cleanEmbedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&mute=1`;
+
             const { error } = await sbClient.from('media').insert([
                 { 
-                    file_url: url, 
+                    file_url: cleanEmbedUrl, 
                     media_type: 'url',
                     file_name: name 
                 }
