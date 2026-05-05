@@ -42,10 +42,9 @@
         
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         
-        // Playlist Core Variables
         let currentPlaylist = [];
-        let currentIndex = -1; // Starts at -1 so first "playNext" triggers index 0
-        let lastPlaylistSignature = ""; // Used to detect if you changed the playlist from the dashboard
+        let currentIndex = -1; 
+        let lastPlaylistSignature = ""; 
         let playbackTimer = null;
 
         function updateLog(msg) { document.getElementById('log-text').innerText = msg; }
@@ -81,30 +80,27 @@
 
         function startSyncEngine() {
             fetchPlaylist(); 
-            setInterval(fetchPlaylist, 5000); // Check DB every 5 seconds for updates
+            setInterval(fetchPlaylist, 5000); 
         }
 
         async function fetchPlaylist() {
             try {
-                // Fetch the entire playlist ordered by the time it was added (id)
+                // Modified to sort by display_order so the queue plays exactly as built
                 const { data: playlistData, error: pError } = await sbClient
                     .from('playlist_items')
-                    .select('id, duration, media(*)')
+                    .select('id, duration, display_order, media(*)')
                     .eq('screen_id', SCREEN_ID)
-                    .order('id', { ascending: true });
+                    .order('display_order', { ascending: true });
 
                 if (pError) throw pError;
 
-                // Create a unique "signature" string of the current playlist IDs
                 const newSignature = playlistData ? playlistData.map(p => p.id).join(',') : "";
 
-                // If the playlist has changed (you added/deleted a video)
                 if (newSignature !== lastPlaylistSignature) {
                     updateLog("PLAYLIST UPDATED - RECALCULATING");
                     currentPlaylist = playlistData || [];
                     lastPlaylistSignature = newSignature;
                     
-                    // Restart playback from the beginning of the new playlist
                     currentIndex = -1;
                     playNext(); 
                 }
@@ -113,7 +109,7 @@
         }
 
         function playNext() {
-            clearTimeout(playbackTimer); // Clear any existing image timers
+            clearTimeout(playbackTimer); 
             
             if (currentPlaylist.length === 0) {
                 updateLog("PLAYLIST EMPTY - WAITING");
@@ -124,7 +120,6 @@
                 return;
             }
 
-            // Move to next video/image. If we hit the end, loop back to 0
             currentIndex++;
             if (currentIndex >= currentPlaylist.length) currentIndex = 0;
 
@@ -140,20 +135,18 @@
             const cont = document.getElementById('media-container');
 
             if (media.media_type === 'image') {
-                // IMAGES: Show the image, wait for 'duration', then play next
                 cont.innerHTML = `<img src="${media.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
                 playbackTimer = setTimeout(playNext, (item.duration || 10) * 1000);
 
             } else if (media.media_type === 'video') {
-                // LOCAL VIDEOS: Play video, trigger playNext when the video 'ended' event fires
+                // BUG FIX: The "loop" attribute was removed here!
                 cont.innerHTML = `<video id="nehas-vid" src="${media.file_url}" autoplay muted style="width:100%;height:100%;object-fit:cover;"></video>`;
+                
+                // Now, when the video finishes, it actually triggers playNext
                 document.getElementById('nehas-vid').onended = playNext;
-                document.getElementById('nehas-vid').onerror = playNext; // If video fails to load, skip it
+                document.getElementById('nehas-vid').onerror = playNext;
 
             } else if (media.media_type === 'url') {
-                // YOUTUBE: Use the official API to detect when the video finishes
-                
-                // We MUST inject '&enablejsapi=1' into the url so the API can talk to it
                 let ytUrl = media.file_url;
                 if (!ytUrl.includes('enablejsapi=1')) {
                     ytUrl += '&enablejsapi=1';
@@ -161,17 +154,15 @@
 
                 cont.innerHTML = `<iframe id="nehas-yt" src="${ytUrl}" style="width:100%;height:100%;border:none;" allow="autoplay" allowfullscreen></iframe>`;
 
-                // Give the iframe a half second to load, then bind the YouTube tracker
                 setTimeout(() => {
                     new YT.Player('nehas-yt', {
                         events: {
                             'onStateChange': function(event) {
-                                // 0 means YT.PlayerState.ENDED
                                 if (event.data === 0) {
                                     playNext();
                                 }
                             },
-                            'onError': playNext // Skip if YouTube blocks it
+                            'onError': playNext 
                         }
                     });
                 }, 500);
