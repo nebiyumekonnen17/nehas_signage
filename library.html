@@ -14,16 +14,19 @@
         .main { flex: 1; padding: 50px; overflow-y: auto; }
         
         .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .media-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid #e2e8f0; }
-        .media-preview { width: 100%; height: 150px; background: #cbd5e1; object-fit: cover; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b;}
-        .media-actions { padding: 15px; }
-        .media-actions button { width: 100%; padding: 10px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .media-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+        .media-preview { width: 100%; height: 150px; background: #cbd5e1; object-fit: cover; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b; }
+        .media-actions { padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .media-actions button { width: 100%; padding: 12px; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .media-actions button:hover { filter: brightness(1.1); }
+        .btn-assign { background: #10b981; }
+        .btn-delete { background: #ef4444; }
 
         /* Assignment Modal */
         dialog { border: none; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); width: 400px; }
         dialog::backdrop { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(5px); }
-        .screen-checkbox { display: flex; align-items: center; padding: 10px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px; }
-        .screen-checkbox input { margin-right: 15px; width: 20px; height: 20px; }
+        .screen-checkbox { display: flex; align-items: center; padding: 10px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px; cursor: pointer; }
+        .screen-checkbox input { margin-right: 15px; width: 20px; height: 20px; cursor: pointer; }
         .modal-buttons { display: flex; gap: 10px; margin-top: 20px; }
         .modal-buttons button { flex: 1; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
     </style>
@@ -70,14 +73,17 @@
                 grid.innerHTML = data.map(m => `
                     <div class="media-card">
                         ${m.media_type === 'image' ? `<img src="${m.file_url}" class="media-preview">` : 
-                          `<div class="media-preview">${m.media_type.toUpperCase()} LINK</div>`}
+                          m.media_type === 'video' ? `<video src="${m.file_url}" class="media-preview" muted></video>` : 
+                          `<div class="media-preview">YOUTUBE LINK</div>`}
+                        
                         <div class="media-actions">
-                            <button onclick="openModal(${m.id})">Assign to Screens</button>
+                            <button class="btn-assign" onclick="openModal(${m.id})">Assign to Screens</button>
+                            <button class="btn-delete" onclick="deleteMedia(${m.id})">Delete Document</button>
                         </div>
                     </div>
                 `).join('');
             } else {
-                grid.innerHTML = "<p>Your library is empty. Add media via the Dashboard Hub.</p>";
+                grid.innerHTML = "<p>Your library is empty. Upload media via the Dashboard Hub.</p>";
             }
         }
 
@@ -96,7 +102,6 @@
             } else {
                 container.innerHTML = "<p style='color:red;'>No paired screens available.</p>";
             }
-            
             document.getElementById('assign-modal').showModal();
         }
 
@@ -110,15 +115,27 @@
             const checkboxes = document.querySelectorAll('.screen-check:checked');
             if(checkboxes.length === 0) return alert("Select at least one screen.");
 
-            // Loop through selected screens and push the media
             for (let box of checkboxes) {
                 const screenId = box.value;
-                await sbClient.from('playlist_items').delete().eq('screen_id', screenId); // Clear old
-                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); // Add new
+                await sbClient.from('playlist_items').delete().eq('screen_id', screenId); 
+                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
             }
 
             closeModal();
             alert("Success! Content pushed to selected screens.");
+        }
+
+        async function deleteMedia(id) {
+            if(confirm("Are you sure you want to permanently delete this media? It will be removed from any TVs currently displaying it.")) {
+                await sbClient.from('playlist_items').delete().eq('media_id', id);
+                const { error } = await sbClient.from('media').delete().eq('id', id);
+                
+                if(!error) {
+                    loadLibrary(); 
+                } else {
+                    alert("Error deleting media. Please try again.");
+                }
+            }
         }
 
         window.onload = loadLibrary;
