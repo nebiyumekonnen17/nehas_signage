@@ -67,12 +67,19 @@
     </dialog>
 
     <dialog id="assign-modal">
-        <h2 style="margin-top:0;">Deploy to Screens</h2>
-        <p style="color:#64748b;">Select which TVs should play this media.</p>
+        <h2 style="margin-top:0;">Add to Playlist</h2>
+        <p style="color:#64748b;">Select screens to append this media to.</p>
         <div id="screen-checkboxes"><p style="color:#94a3b8;">Loading screens...</p></div>
+        
+        <div style="margin-top: 15px; padding: 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+            <label style="font-weight: bold; font-size: 14px; color: #1e293b;">Image Duration (Seconds)</label>
+            <p style="font-size: 12px; color: #64748b; margin: 5px 0;">Videos will ignore this and play until finished.</p>
+            <input type="number" id="play-duration" value="10" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; box-sizing: border-box; margin-top: 5px;">
+        </div>
+
         <div class="modal-buttons">
             <button style="background: #e2e8f0; color: #475569;" onclick="closeAssignModal()">Cancel</button>
-            <button id="btn-confirm" style="background: #10b981; color: white;" onclick="confirmAssignment()">Push to TVs</button>
+            <button id="btn-confirm" style="background: #10b981; color: white;" onclick="confirmAssignment()">Add to Queue</button>
         </div>
     </dialog>
 
@@ -96,9 +103,9 @@
                               `<div class="media-preview-box">YOUTUBE VIDEO</div>`}
                             <div class="media-info"><h4>${safeName}</h4><p>${m.media_type}</p></div>
                             <div class="media-actions">
-                                <button class="btn-preview" data-url="${m.file_url}" data-type="${m.media_type}" onclick="openPreview(this)">Preview Media</button>
-                                <button class="btn-assign" onclick="openAssignModal('${m.id}')">Assign to Screens</button>
-                                <button class="btn-delete" onclick="deleteMedia('${m.id}')">Delete from Library</button>
+                                <button class="btn-preview" data-url="${m.file_url}" data-type="${m.media_type}" onclick="openPreview(this)">Preview</button>
+                                <button class="btn-assign" onclick="openAssignModal('${m.id}')">Add to Playlist</button>
+                                <button class="btn-delete" onclick="deleteMedia('${m.id}')">Delete Media</button>
                             </div>
                         </div>
                     `;
@@ -135,34 +142,34 @@
             const boxes = document.querySelectorAll('.screen-check:checked');
             if(boxes.length === 0) return alert("Select a TV.");
             const btn = document.getElementById('btn-confirm');
-            btn.innerText = "Deploying..."; btn.disabled = true;
+            btn.innerText = "Adding..."; btn.disabled = true;
+            
+            const dur = document.getElementById('play-duration').value || 10;
 
             try {
                 for (let box of boxes) {
                     const sid = box.value;
-                    await sbClient.from('playlist_items').delete().eq('screen_id', sid);
-                    
-                    // CRITICAL FIX: Added display_order: 1 to satisfy your database requirements
+                    // NO DELETING! Just inserting to build the playlist queue.
                     const { error } = await sbClient.from('playlist_items').insert([{ 
                         screen_id: sid, 
                         media_id: currentMediaId,
-                        display_order: 1 
+                        display_order: 1,
+                        duration: parseInt(dur)
                     }]);
-                    
                     if (error) throw error;
                 }
-                alert("Deployed! Check your TV in 3 seconds.");
+                alert("Added to playlist!");
                 closeAssignModal();
             } catch (err) {
-                alert("CRITICAL ASSIGNMENT ERROR: " + err.message);
+                alert("ERROR: " + err.message);
                 console.error(err);
             } finally {
-                btn.innerText = "Push to TVs"; btn.disabled = false;
+                btn.innerText = "Add to Queue"; btn.disabled = false;
             }
         }
 
         async function deleteMedia(id) {
-            if(confirm("Delete permanently?")) {
+            if(confirm("Delete permanently? This will remove it from all playlists.")) {
                 await sbClient.from('playlist_items').delete().eq('media_id', id);
                 await sbClient.from('media').delete().eq('id', id);
                 loadLibrary();
