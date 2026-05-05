@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Nehas Player | TV Display</title>
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -33,16 +38,8 @@
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         
-        // CRITICAL FIX 1: Supabase Cache-Buster. Forces TV to fetch live data instead of reading memory.
-        const sbClient = supabase.createClient(S_URL, S_KEY, {
-            global: {
-                fetch: (url, options) => {
-                    const reqUrl = new URL(url);
-                    reqUrl.searchParams.set('nocache', Date.now());
-                    return fetch(reqUrl.toString(), { ...options, cache: 'no-store' });
-                }
-            }
-        });
+        // Reverted to the safe, standard client
+        const sbClient = supabase.createClient(S_URL, S_KEY);
         
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         let currentPlaylist = [];
@@ -76,7 +73,8 @@
                 document.getElementById('ui-content').innerHTML = `<div class="code">${code}</div><p>Enter this code in your Dashboard to pair.</p><p style="font-size:14px; margin-top:20px;">(Click anywhere on screen to enter Fullscreen Mode)</p>`;
                 
                 const pairCheck = setInterval(async () => {
-                    const { data: sData } = await sbClient.from('screens').select('is_paired').eq('id', SCREEN_ID);
+                    // Added a cache-busting timestamp to the query to force live data
+                    const { data: sData } = await sbClient.from('screens').select('is_paired').eq('id', SCREEN_ID).neq('pairing_code', Date.now().toString());
                     if (sData && sData.length > 0 && sData[0].is_paired) {
                         clearInterval(pairCheck);
                         startHeartbeat();
@@ -101,10 +99,12 @@
 
         async function fetchPlaylist() {
             try {
+                // The .neq() acts as a harmless query parameter that forces the browser not to cache the result
                 const { data: playlistData, error: pError } = await sbClient
                     .from('playlist_items')
                     .select('id, duration, display_order, start_time, end_time, media(*)')
                     .eq('screen_id', SCREEN_ID)
+                    .neq('display_order', Date.now()) 
                     .order('display_order', { ascending: true });
 
                 if (pError) throw pError;
@@ -125,8 +125,14 @@
             } catch (err) { console.error("Sync Error:", err); }
         }
 
-        // --- OFFLINE CACHE & AUTO-CLEANUP ---
+        // --- OFFLINE CACHE (WITH TV SAFETY FALLBACK) ---
         async function manageOfflineCache(playlist) {
+            // Safety Check: If the TV browser is too old, just skip caching and stream it live
+            if (!('caches' in window)) {
+                console.warn("Offline caching not supported on this device.");
+                return;
+            }
+
             try {
                 const cache = await caches.open('nehas-media-cache');
                 const cacheKeys = await cache.keys();
@@ -153,6 +159,8 @@
         }
 
         async function getLocalMediaUrl(url) {
+            if (!('caches' in window)) return url; // Fallback for older TVs
+
             try {
                 const cache = await caches.open('nehas-media-cache');
                 const response = await cache.match(url);
@@ -164,8 +172,7 @@
             return url; 
         }
 
-        // --- CRITICAL FIX 2: HARDWARE MEDIA CLEANUP ---
-        // Forces the TV to completely destroy the video out of memory
+        // --- HARDWARE MEDIA CLEANUP ---
         function clearCurrentMedia() {
             const oldVid = document.getElementById('nehas-vid');
             if (oldVid) {
@@ -234,7 +241,7 @@
         }
 
         async function renderMedia(item) {
-            clearCurrentMedia(); // Destroy old video before loading the new one
+            clearCurrentMedia(); 
             
             const media = item.media;
             updateLog(`PLAYING [${currentIndex + 1}/${currentPlaylist.length}]: ${media.media_type.toUpperCase()}`);
