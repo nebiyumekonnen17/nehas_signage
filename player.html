@@ -6,22 +6,26 @@
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; cursor: none; }
         #media-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; background: #000; }
-        .glass-card { background: rgba(15, 23, 42, 0.9); padding: 60px; border-radius: 40px; text-align: center; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; border: 1px solid rgba(255,255,255,0.1); }
-        .brand-eng { font-size: 2rem; font-weight: 900; color: #3b82f6; margin-bottom: 5px; letter-spacing: 5px; }
-        .brand-am { font-size: 1.5rem; color: #cbd5e1; margin-bottom: 20px; }
-        #status { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; opacity: 0.6; z-index: 999; font-family: monospace; }
+        .glass-card { background: rgba(15, 23, 42, 0.95); padding: 60px; border-radius: 40px; text-align: center; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 100px rgba(0,0,0,1); }
+        .brand-eng { font-size: 2.2rem; font-weight: 900; color: #3b82f6; margin-bottom: 5px; letter-spacing: 5px; }
+        .brand-am { font-size: 1.6rem; color: #cbd5e1; margin-bottom: 25px; }
+        #status { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; opacity: 0.5; z-index: 999; font-family: monospace; }
+        .fullscreen-prompt { font-size: 12px; color: #64748b; margin-top: 20px; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
 <body>
     <div id="media-container"></div>
+    
     <div class="glass-card" id="ui-box">
         <div class="brand-eng">NEHAS SIGNAGE</div>
         <div class="brand-am">ነሃስ ማስታወቂያ</div>
-        <div id="ui-content" style="font-size: 1.1rem; color: #94a3b8;">Connecting to Cloud...</div>
+        <div id="ui-content" style="font-size: 1.1rem; color: #94a3b8;">Establishing Secure Link...</div>
+        <div class="fullscreen-prompt" id="fs-hint">Tap screen for Fullscreen</div>
     </div>
-    <div id="status">SYS_LOG: <span id="log-text">INIT</span></div>
+
+    <div id="status">SYS_LOG: <span id="log-text">IDLE</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
@@ -37,30 +41,20 @@
 
         async function boot() {
             updateLog("STARTING_BOOT");
-            try {
-                if (SCREEN_ID) {
-                    const { data, error } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
-                    if (data && data.is_paired) {
-                        updateLog("ID_VERIFIED");
-                        return startEngine();
-                    }
-                }
-                register();
-            } catch (e) {
-                document.getElementById('ui-content').innerHTML = `<span style="color:red">Boot Error: ${e.message}</span>`;
+            if (SCREEN_ID) {
+                const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
+                if (data && data.is_paired) return startEngine();
             }
+            register();
         }
 
         async function register() {
-            updateLog("REGISTERING_NEW_TV");
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            const { data, error } = await sbClient.from('screens').insert([{ name: 'New TV', pairing_code: code, is_paired: false }]).select();
-
+            const { data } = await sbClient.from('screens').insert([{ name: 'New Display', pairing_code: code, is_paired: false }]).select();
             if (data && data[0]) {
                 SCREEN_ID = data[0].id;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
-                document.getElementById('ui-content').innerHTML = `<div style="font-size:5rem; font-weight:bold; color:white; margin:20px 0;">${code}</div><p>Enter code in Dashboard to pair.</p>`;
-                
+                document.getElementById('ui-content').innerHTML = `<div style="font-size:5rem; font-weight:bold; color:white; margin:20px 0;">${code}</div><p>Pair this code in your Dashboard.</p>`;
                 setInterval(async () => {
                     const { data: s } = await sbClient.from('screens').select('is_paired').eq('id', SCREEN_ID).maybeSingle();
                     if (s && s.is_paired) location.reload();
@@ -69,18 +63,16 @@
         }
 
         function startEngine() {
+            updateLog("ENGINE_LIVE");
             fetchPlaylist();
             setInterval(fetchPlaylist, 10000);
-            // Heartbeat
             setInterval(() => sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID), 20000);
         }
 
         async function fetchPlaylist() {
             const { data } = await sbClient.from('playlist_items').select('id, duration, media(*)').eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
             const sig = data ? data.map(p => p.id).join(',') : "";
-            
             if (sig !== lastSignature) {
-                updateLog("SYNCING_PLAYLIST");
                 currentPlaylist = data || [];
                 lastSignature = sig;
                 currentIndex = -1;
@@ -90,23 +82,19 @@
 
         function playNext() {
             if (currentPlaylist.length === 0) {
-                updateLog("EMPTY_QUEUE");
                 document.getElementById('ui-box').style.display = "block";
                 document.getElementById('media-container').innerHTML = "";
                 document.getElementById('ui-content').innerText = "Waiting for media...";
                 return;
             }
-
             currentIndex = (currentIndex + 1) >= currentPlaylist.length ? 0 : currentIndex + 1;
-            const item = currentPlaylist[currentIndex];
-            render(item);
+            render(currentPlaylist[currentIndex]);
         }
 
         function render(item) {
-            updateLog(`PLAYING_${item.media.media_type.toUpperCase()}`);
+            updateLog(`ACTIVE: ${item.media.media_type.toUpperCase()}`);
             document.getElementById('ui-box').style.display = "none";
             const cont = document.getElementById('media-container');
-            
             if (item.media.media_type === 'image') {
                 cont.innerHTML = `<img src="${item.media.file_url}" style="max-width:100%; max-height:100%; object-fit:contain">`;
                 setTimeout(playNext, (item.duration || 10) * 1000);
@@ -114,11 +102,27 @@
                 cont.innerHTML = `<video id="v" src="${item.media.file_url}" autoplay muted style="width:100%; height:100%; object-fit:cover"></video>`;
                 document.getElementById('v').onended = playNext;
             } else if (item.media.media_type === 'url') {
-                cont.innerHTML = `<iframe src="${item.media.file_url}&enablejsapi=1&autoplay=1&mute=1" style="width:100%; height:100%; border:none"></iframe>`;
-                // YouTube looping requires API, skipping complexity for now to ensure boot
-                setTimeout(playNext, 30000); 
+                cont.innerHTML = `<iframe id="yt" src="${item.media.file_url}&enablejsapi=1&autoplay=1&mute=1" style="width:100%; height:100%; border:none"></iframe>`;
+                // YouTube listener logic
+                setTimeout(() => {
+                    try {
+                        new YT.Player('yt', { events: { 'onStateChange': (e) => { if(e.data === 0) playNext(); } } });
+                    } catch(e) { setTimeout(playNext, 60000); }
+                }, 1000);
             }
         }
+
+        // --- FULLSCREEN & INPUT LOCKING ---
+        document.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                document.getElementById('fs-hint').style.display = "none";
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'F11' && e.key !== 'Escape') e.preventDefault();
+        });
 
         window.onload = boot;
     </script>
