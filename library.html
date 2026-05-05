@@ -13,22 +13,38 @@
         .nav-items a:hover, .nav-items a.active { background: #3b82f6; color: white; font-weight: bold; }
         .main { flex: 1; padding: 50px; overflow-y: auto; }
         
-        .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
         .media-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
-        .media-preview { width: 100%; height: 150px; background: #cbd5e1; object-fit: cover; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b; }
-        .media-actions { padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .media-actions button { width: 100%; padding: 12px; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .media-preview-box { width: 100%; height: 160px; background: #cbd5e1; object-fit: cover; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b; border-bottom: 1px solid #e2e8f0; }
+        
+        .media-info { padding: 15px; padding-bottom: 0; }
+        .media-info h4 { margin: 0; color: #1e293b; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .media-info p { margin: 5px 0 0 0; color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: bold; }
+
+        .media-actions { padding: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .media-actions button { width: 100%; padding: 10px; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; }
         .media-actions button:hover { filter: brightness(1.1); }
+        .btn-preview { background: #3b82f6; }
         .btn-assign { background: #10b981; }
         .btn-delete { background: #ef4444; }
 
-        /* Assignment Modal */
-        dialog { border: none; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); width: 400px; }
-        dialog::backdrop { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(5px); }
-        .screen-checkbox { display: flex; align-items: center; padding: 10px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px; cursor: pointer; }
+        /* Modals */
+        dialog { border: none; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+        dialog::backdrop { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px); }
+        
+        /* Assign Modal specific */
+        #assign-modal { width: 400px; }
+        .screen-checkbox { display: flex; align-items: center; padding: 12px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px; cursor: pointer; border: 1px solid #e2e8f0; transition: 0.2s; }
+        .screen-checkbox:hover { background: #e2e8f0; }
         .screen-checkbox input { margin-right: 15px; width: 20px; height: 20px; cursor: pointer; }
+        
+        /* Preview Modal specific */
+        #preview-modal { width: 800px; max-width: 90vw; text-align: center; background: #0f172a; color: white; padding: 20px; }
+        #preview-container { width: 100%; height: 500px; background: #000; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+        #preview-container img, #preview-container video, #preview-container iframe { width: 100%; height: 100%; object-fit: contain; border: none; }
+
         .modal-buttons { display: flex; gap: 10px; margin-top: 20px; }
-        .modal-buttons button { flex: 1; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
+        .modal-buttons button { flex: 1; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -48,13 +64,23 @@
         </div>
     </div>
 
+    <dialog id="preview-modal">
+        <h2 style="margin-top:0;">Media Preview</h2>
+        <div id="preview-container"></div>
+        <div class="modal-buttons">
+            <button style="background: #3b82f6; color: white;" onclick="closePreviewModal()">Close Preview</button>
+        </div>
+    </dialog>
+
     <dialog id="assign-modal">
         <h2 style="margin-top:0;">Deploy to Screens</h2>
         <p style="color:#64748b;">Select which TVs should play this media.</p>
-        <div id="screen-checkboxes"></div>
+        <div id="screen-checkboxes">
+            <p style="color:#94a3b8;">Loading screens...</p>
+        </div>
         <div class="modal-buttons">
-            <button style="background: #e2e8f0; color: #475569;" onclick="closeModal()">Cancel</button>
-            <button style="background: #3b82f6; color: white;" onclick="confirmAssignment()">Deploy Now</button>
+            <button style="background: #e2e8f0; color: #475569;" onclick="closeAssignModal()">Cancel</button>
+            <button style="background: #10b981; color: white;" onclick="confirmAssignment()">Push to TVs</button>
         </div>
     </dialog>
 
@@ -72,40 +98,68 @@
             if(data && data.length > 0) {
                 grid.innerHTML = data.map(m => `
                     <div class="media-card">
-                        ${m.media_type === 'image' ? `<img src="${m.file_url}" class="media-preview">` : 
-                          m.media_type === 'video' ? `<video src="${m.file_url}" class="media-preview" muted></video>` : 
-                          `<div class="media-preview">YOUTUBE LINK</div>`}
+                        ${m.media_type === 'image' ? `<img src="${m.file_url}" class="media-preview-box">` : 
+                          m.media_type === 'video' ? `<video src="${m.file_url}" class="media-preview-box" muted></video>` : 
+                          `<div class="media-preview-box">YOUTUBE VIDEO</div>`}
                         
+                        <div class="media-info">
+                            <h4 title="${m.file_name || 'Unnamed File'}">${m.file_name || 'Unnamed File'}</h4>
+                            <p>${m.media_type}</p>
+                        </div>
+
                         <div class="media-actions">
-                            <button class="btn-assign" onclick="openModal(${m.id})">Assign to Screens</button>
-                            <button class="btn-delete" onclick="deleteMedia(${m.id})">Delete Document</button>
+                            <button class="btn-preview" onclick="openPreview('${m.file_url}', '${m.media_type}')">Preview Media</button>
+                            <button class="btn-assign" onclick="openAssignModal(${m.id})">Assign to Screens</button>
+                            <button class="btn-delete" onclick="deleteMedia(${m.id})">Delete from Library</button>
                         </div>
                     </div>
                 `).join('');
             } else {
-                grid.innerHTML = "<p>Your library is empty. Upload media via the Dashboard Hub.</p>";
+                grid.innerHTML = "<p style='color:#64748b;'>Your library is empty. Upload media via the Dashboard Hub.</p>";
             }
         }
 
-        async function openModal(mediaId) {
+        // --- PREVIEW LOGIC ---
+        function openPreview(url, type) {
+            const container = document.getElementById('preview-container');
+            if (type === 'image') {
+                container.innerHTML = `<img src="${url}">`;
+            } else if (type === 'video') {
+                container.innerHTML = `<video src="${url}" controls autoplay></video>`;
+            } else if (type === 'url') {
+                container.innerHTML = `<iframe src="${url}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+            }
+            document.getElementById('preview-modal').showModal();
+        }
+
+        function closePreviewModal() {
+            // Clear inner HTML so videos/YouTube stop playing in the background
+            document.getElementById('preview-container').innerHTML = '';
+            document.getElementById('preview-modal').close();
+        }
+
+        // --- ASSIGNMENT LOGIC ---
+        async function openAssignModal(mediaId) {
             currentMediaId = mediaId;
-            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
             const container = document.getElementById('screen-checkboxes');
+            container.innerHTML = "<p>Loading active TVs...</p>";
+            document.getElementById('assign-modal').showModal();
+
+            const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
             
             if(data && data.length > 0) {
                 container.innerHTML = data.map(s => `
                     <label class="screen-checkbox">
                         <input type="checkbox" value="${s.id}" class="screen-check">
-                        ${s.name}
+                        <span style="font-weight:bold; color:#1e293b;">${s.name}</span>
                     </label>
                 `).join('');
             } else {
-                container.innerHTML = "<p style='color:red;'>No paired screens available.</p>";
+                container.innerHTML = "<p style='color:#ef4444; font-weight:bold;'>No TVs are currently linked to your account.</p>";
             }
-            document.getElementById('assign-modal').showModal();
         }
 
-        function closeModal() {
+        function closeAssignModal() {
             document.getElementById('assign-modal').close();
             currentMediaId = null;
         }
@@ -113,21 +167,34 @@
         async function confirmAssignment() {
             if(!currentMediaId) return;
             const checkboxes = document.querySelectorAll('.screen-check:checked');
-            if(checkboxes.length === 0) return alert("Select at least one screen.");
+            if(checkboxes.length === 0) return alert("Please select at least one TV to push to.");
+
+            let successCount = 0;
 
             for (let box of checkboxes) {
                 const screenId = box.value;
+                // Clear old item first
                 await sbClient.from('playlist_items').delete().eq('screen_id', screenId); 
-                await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
+                // Insert new item
+                const { error } = await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
+                if(!error) successCount++;
             }
 
-            closeModal();
-            alert("Success! Content pushed to selected screens.");
+            closeAssignModal();
+            if (successCount > 0) {
+                alert(`Success! The content has been pushed to ${successCount} screen(s).`);
+            } else {
+                alert("There was an error saving to the database. Make sure your TVs are still active.");
+            }
         }
 
+        // --- DELETE LOGIC ---
         async function deleteMedia(id) {
-            if(confirm("Are you sure you want to permanently delete this media? It will be removed from any TVs currently displaying it.")) {
+            if(confirm("Permanently delete this media? It will instantly be removed from any TVs currently displaying it.")) {
+                // 1. Remove from active playlists so TVs don't break
                 await sbClient.from('playlist_items').delete().eq('media_id', id);
+                
+                // 2. Remove from library
                 const { error } = await sbClient.from('media').delete().eq('id', id);
                 
                 if(!error) {
