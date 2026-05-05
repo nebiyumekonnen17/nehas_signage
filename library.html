@@ -149,14 +149,32 @@
             try {
                 for (let box of boxes) {
                     const sid = box.value;
-                    // NO DELETING! Just inserting to build the playlist queue.
-                    const { error } = await sbClient.from('playlist_items').insert([{ 
+                    
+                    // 1. Find out how many items are currently in this TV's playlist
+                    const { data: existingItems, error: fetchErr } = await sbClient
+                        .from('playlist_items')
+                        .select('display_order')
+                        .eq('screen_id', sid)
+                        .order('display_order', { ascending: false })
+                        .limit(1);
+
+                    if (fetchErr) throw fetchErr;
+
+                    // 2. Calculate the next available position (if empty, start at 1)
+                    let nextOrder = 1;
+                    if (existingItems && existingItems.length > 0) {
+                        nextOrder = existingItems[0].display_order + 1;
+                    }
+
+                    // 3. Add the new media at the calculated position
+                    const { error: insertErr } = await sbClient.from('playlist_items').insert([{ 
                         screen_id: sid, 
                         media_id: currentMediaId,
-                        display_order: 1,
+                        display_order: nextOrder, 
                         duration: parseInt(dur)
                     }]);
-                    if (error) throw error;
+                    
+                    if (insertErr) throw insertErr;
                 }
                 alert("Added to playlist!");
                 closeAssignModal();
