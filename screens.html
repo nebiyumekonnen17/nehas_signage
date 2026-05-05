@@ -18,9 +18,12 @@
         
         .now-playing { margin-top: 8px; font-size: 13px; font-weight: bold; padding: 6px 12px; background: white; border-radius: 6px; display: inline-block; border: 1px solid #e2e8f0; }
         
-        .screen-actions button { padding: 10px 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-left: 10px; transition: 0.2s; }
+        .screen-actions { display: flex; gap: 8px; }
+        .screen-actions button { padding: 10px 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; }
         .screen-actions button:hover { filter: brightness(0.9); }
+        
         .btn-edit { background: #e2e8f0; color: #475569; }
+        .btn-clear { background: #ffedd5; color: #ea580c; } /* Orange warning button */
         .btn-del { background: #fee2e2; color: #ef4444; }
     </style>
 </head>
@@ -50,13 +53,8 @@
         async function loadScreens() {
             const list = document.getElementById('screen-list');
             
-            // 1. Fetch screens
             const { data: screens } = await sbClient.from('screens').select('*').eq('is_paired', true);
-            
-            // 2. Fetch playlists separately (NO Database Joins to avoid silent failure)
             const { data: playlists } = await sbClient.from('playlist_items').select('screen_id, media_id');
-            
-            // 3. Fetch media separately
             const { data: allMedia } = await sbClient.from('media').select('id, file_name, media_type');
             
             if(screens && screens.length > 0) {
@@ -64,18 +62,20 @@
                     const safeNameForJS = s.name ? s.name.replace(/'/g, "\\'") : 'Unnamed';
                     const safeNameForHTML = s.name ? s.name.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 'Unnamed';
 
-                    // Figure out what is playing on this specific screen manually
                     const activeItem = playlists?.find(p => p.screen_id === s.id);
                     let playingText = "<span style='color:#ef4444;'>No Media Assigned</span>";
+                    let clearBtnHtml = ""; // Default to empty if no media is playing
                     
                     if (activeItem) {
-                        // Cross-reference the media ID with our fetched media table
                         const mediaDetails = allMedia?.find(m => m.id === activeItem.media_id);
                         
                         if (mediaDetails) {
                             const mediaName = mediaDetails.file_name ? mediaDetails.file_name.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 'Unnamed File';
                             const typeLabel = mediaDetails.media_type.toUpperCase();
                             playingText = `<span style='color:#3b82f6;'>▶ ${mediaName} (${typeLabel})</span>`;
+                            
+                            // If media is assigned, create the clear button
+                            clearBtnHtml = `<button class="btn-clear" onclick="clearScreen('${s.id}')">Clear Screen</button>`;
                         }
                     }
 
@@ -87,6 +87,7 @@
                                 <div class="now-playing">${playingText}</div>
                             </div>
                             <div class="screen-actions">
+                                ${clearBtnHtml}
                                 <button class="btn-edit" onclick="renameScreen('${s.id}', '${safeNameForJS}')">Rename</button>
                                 <button class="btn-del" onclick="deleteScreen('${s.id}')">Delete TV</button>
                             </div>
@@ -95,6 +96,17 @@
                 }).join('');
             } else {
                 list.innerHTML = "<p style='color:#94a3b8;'>No screens are currently paired.</p>";
+            }
+        }
+
+        async function clearScreen(screenId) {
+            if (confirm("Remove the current media from this screen? It will instantly go to the standby screen.")) {
+                try {
+                    await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
+                    loadScreens(); 
+                } catch (err) {
+                    alert("Database Error: " + err.message);
+                }
             }
         }
 
