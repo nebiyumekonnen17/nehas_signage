@@ -64,12 +64,10 @@
     </div>
 
     <script>
-        // Supabase Init
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
 
-        // Cloudinary Config
         const CLOUD_NAME = 'dfgfiope9'; 
         const CLOUD_PRESET = 'nehas_unsigned'; 
 
@@ -79,21 +77,16 @@
             const status = document.getElementById('status-pair');
             
             if(!code || !name) return status.innerText = "Fill all fields.";
-            
-            status.style.color = "#3b82f6"; 
-            status.innerText = "Searching for TV...";
+            status.style.color = "#3b82f6"; status.innerText = "Searching for TV...";
             
             const { data } = await sbClient.from('screens').select('*').eq('pairing_code', code).eq('is_paired', false).maybeSingle();
 
             if (data) {
                 await sbClient.from('screens').update({ name: name, is_paired: true, pairing_code: null }).eq('id', data.id);
-                status.style.color = "#10b981"; 
-                status.innerText = "Success! TV Linked.";
-                document.getElementById('p-code').value = '';
-                document.getElementById('p-name').value = '';
+                status.style.color = "#10b981"; status.innerText = "Success! TV Linked.";
+                document.getElementById('p-code').value = ''; document.getElementById('p-name').value = '';
             } else {
-                status.style.color = "#ef4444"; 
-                status.innerText = "Invalid Code or TV offline.";
+                status.style.color = "#ef4444"; status.innerText = "Invalid Code or TV offline.";
             }
         }
 
@@ -103,9 +96,7 @@
             const status = document.getElementById('status-cloud');
 
             if(!file) return status.innerText = "Please select a file.";
-            
-            status.style.color = "#3b82f6"; 
-            status.innerText = "Uploading to Cloudinary... Please wait.";
+            status.style.color = "#3b82f6"; status.innerText = "Uploading to Cloudinary... Please wait.";
 
             const formData = new FormData();
             formData.append('file', file);
@@ -118,32 +109,23 @@
                 const cloudData = await res.json();
 
                 if (cloudData.error) {
-                    status.style.color = "#ef4444";
-                    return status.innerText = "Cloudinary Error: " + cloudData.error.message;
+                    status.style.color = "#ef4444"; return status.innerText = "Cloudinary Error: " + cloudData.error.message;
                 }
 
                 const mediaType = cloudData.resource_type === 'video' ? 'video' : 'image';
-                
                 const { error: dbError } = await sbClient.from('media').insert([
-                    { 
-                        file_url: cloudData.secure_url, 
-                        media_type: mediaType,
-                        file_name: file.name 
-                    }
+                    { file_url: cloudData.secure_url, media_type: mediaType, file_name: file.name }
                 ]);
 
                 if(dbError) {
-                    status.style.color = "#ef4444";
-                    return status.innerText = "Database Error: " + dbError.message;
+                    status.style.color = "#ef4444"; return status.innerText = "Database Error: " + dbError.message;
                 }
 
-                status.style.color = "#10b981"; 
-                status.innerText = "Media Saved to Library!";
+                status.style.color = "#10b981"; status.innerText = "Media Saved to Library!";
                 fileInput.value = ''; 
 
             } catch (err) {
-                status.style.color = "#ef4444";
-                status.innerText = "Network Error. Check Console.";
+                status.style.color = "#ef4444"; status.innerText = "Network Error. Check Console.";
             }
         }
 
@@ -153,11 +135,8 @@
             const status = document.getElementById('status-yt');
             
             if(!rawUrl || !name) return status.innerText = "Provide a YouTube URL and a Name.";
+            status.style.color = "#3b82f6"; status.innerText = "Saving format...";
 
-            status.style.color = "#3b82f6"; 
-            status.innerText = "Saving format...";
-
-            // Robust Extractor: Strips out tracking garbage and gets exact ID
             let videoId = "";
             const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
             const match = rawUrl.match(regExp);
@@ -165,29 +144,21 @@
             if (match && match[2].length === 11) {
                 videoId = match[2];
             } else {
-                status.style.color = "#ef4444";
-                return status.innerText = "Invalid YouTube URL.";
+                status.style.color = "#ef4444"; return status.innerText = "Invalid YouTube URL.";
             }
 
-            // Build perfectly clean embedded URL
-            const cleanEmbedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&mute=1`;
+            // CRITICAL FIX: Use youtube-nocookie.com to bypass Brave browser shields
+            const cleanEmbedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&controls=0&mute=1`;
 
             const { error } = await sbClient.from('media').insert([
-                { 
-                    file_url: cleanEmbedUrl, 
-                    media_type: 'url',
-                    file_name: name 
-                }
+                { file_url: cleanEmbedUrl, media_type: 'url', file_name: name }
             ]);
             
             if(!error) {
-                status.style.color = "#10b981"; 
-                status.innerText = "YouTube Saved to Library!";
-                document.getElementById('yt-url').value = '';
-                document.getElementById('yt-name').value = '';
+                status.style.color = "#10b981"; status.innerText = "YouTube Saved to Library!";
+                document.getElementById('yt-url').value = ''; document.getElementById('yt-name').value = '';
             } else {
-                status.style.color = "#ef4444";
-                status.innerText = "Database Error: " + error.message;
+                status.style.color = "#ef4444"; status.innerText = "Database Error: " + error.message;
             }
         }
     </script>
