@@ -28,19 +28,15 @@
         .btn-assign { background: #10b981; }
         .btn-delete { background: #ef4444; }
 
-        /* Modals */
         dialog { border: none; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
         dialog::backdrop { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px); }
-        
         #assign-modal { width: 400px; }
         .screen-checkbox { display: flex; align-items: center; padding: 12px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px; cursor: pointer; border: 1px solid #e2e8f0; transition: 0.2s; }
-        .screen-checkbox:hover { background: #e2e8f0; }
         .screen-checkbox input { margin-right: 15px; width: 20px; height: 20px; cursor: pointer; }
         
         #preview-modal { width: 800px; max-width: 90vw; text-align: center; background: #0f172a; color: white; padding: 20px; }
         #preview-container { width: 100%; height: 500px; background: #000; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
         #preview-container img, #preview-container video, #preview-container iframe { width: 100%; height: 100%; object-fit: contain; border: none; }
-
         .modal-buttons { display: flex; gap: 10px; margin-top: 20px; }
         .modal-buttons button { flex: 1; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
     </style>
@@ -90,124 +86,83 @@
         async function loadLibrary() {
             const { data } = await sbClient.from('media').select('*').order('id', { ascending: false });
             const grid = document.getElementById('library-grid');
-            
             if(data && data.length > 0) {
                 grid.innerHTML = data.map(m => {
-                    // Strip out BOTH double quotes and single quotes from filenames to prevent HTML breaks
                     const safeName = m.file_name ? m.file_name.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 'Unnamed File';
-                    
                     return `
                         <div class="media-card">
                             ${m.media_type === 'image' ? `<img src="${m.file_url}" class="media-preview-box">` : 
                               m.media_type === 'video' ? `<video src="${m.file_url}" class="media-preview-box" muted></video>` : 
                               `<div class="media-preview-box">YOUTUBE VIDEO</div>`}
-                            
-                            <div class="media-info">
-                                <h4 title="${safeName}">${safeName}</h4>
-                                <p>${m.media_type}</p>
-                            </div>
-
+                            <div class="media-info"><h4>${safeName}</h4><p>${m.media_type}</p></div>
                             <div class="media-actions">
                                 <button class="btn-preview" data-url="${m.file_url}" data-type="${m.media_type}" onclick="openPreview(this)">Preview Media</button>
-                                
                                 <button class="btn-assign" onclick="openAssignModal('${m.id}')">Assign to Screens</button>
                                 <button class="btn-delete" onclick="deleteMedia('${m.id}')">Delete from Library</button>
                             </div>
                         </div>
                     `;
                 }).join('');
-            } else {
-                grid.innerHTML = "<p style='color:#64748b;'>Your library is empty. Upload media via the Dashboard Hub.</p>";
-            }
+            } else { grid.innerHTML = "<p>Library empty.</p>"; }
         }
 
-        // --- PREVIEW LOGIC ---
-        function openPreview(buttonElement) {
-            const url = buttonElement.getAttribute('data-url');
-            const type = buttonElement.getAttribute('data-type');
-            
-            const container = document.getElementById('preview-container');
-            if (type === 'image') {
-                container.innerHTML = `<img src="${url}">`;
-            } else if (type === 'video') {
-                container.innerHTML = `<video src="${url}" controls autoplay></video>`;
-            } else if (type === 'url') {
-                container.innerHTML = `<iframe src="${url}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
-            }
+        function openPreview(btn) {
+            const url = btn.getAttribute('data-url'), type = btn.getAttribute('data-type'), cont = document.getElementById('preview-container');
+            if (type === 'image') cont.innerHTML = `<img src="${url}">`;
+            else if (type === 'video') cont.innerHTML = `<video src="${url}" controls autoplay></video>`;
+            else cont.innerHTML = `<iframe src="${url}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
             document.getElementById('preview-modal').showModal();
         }
 
-        function closePreviewModal() {
-            document.getElementById('preview-container').innerHTML = '';
-            document.getElementById('preview-modal').close();
-        }
+        function closePreviewModal() { document.getElementById('preview-container').innerHTML = ''; document.getElementById('preview-modal').close(); }
 
-        // --- ASSIGNMENT LOGIC ---
         async function openAssignModal(mediaId) {
-            currentMediaId = mediaId; // Now safely stores the ID string
-            const container = document.getElementById('screen-checkboxes');
-            container.innerHTML = "<p>Loading active TVs...</p>";
+            currentMediaId = mediaId;
+            const cont = document.getElementById('screen-checkboxes');
+            cont.innerHTML = "Loading...";
             document.getElementById('assign-modal').showModal();
-
-            const { data, error } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
-            
-            if (error) return container.innerHTML = `<p style="color:red;">Database Error: ${error.message}</p>`;
-
-            if(data && data.length > 0) {
-                container.innerHTML = data.map(s => `
-                    <label class="screen-checkbox">
-                        <input type="checkbox" value="${s.id}" class="screen-check">
-                        <span style="font-weight:bold; color:#1e293b;">${s.name}</span>
-                    </label>
+            const { data } = await sbClient.from('screens').select('id, name').eq('is_paired', true);
+            if(data?.length > 0) {
+                cont.innerHTML = data.map(s => `
+                    <label class="screen-checkbox"><input type="checkbox" value="${s.id}" class="screen-check"><span>${s.name}</span></label>
                 `).join('');
-            } else {
-                container.innerHTML = "<p style='color:#ef4444; font-weight:bold;'>No TVs are currently linked.</p>";
-            }
+            } else { cont.innerHTML = "No active TVs found."; }
         }
 
-        function closeAssignModal() {
-            document.getElementById('assign-modal').close();
-            currentMediaId = null;
-        }
+        function closeAssignModal() { document.getElementById('assign-modal').close(); }
 
         async function confirmAssignment() {
-            if(!currentMediaId) return;
-            const checkboxes = document.querySelectorAll('.screen-check:checked');
-            if(checkboxes.length === 0) return alert("Please select at least one TV to push to.");
-
-            const confirmBtn = document.getElementById('btn-confirm');
-            confirmBtn.innerText = "Deploying...";
-            confirmBtn.disabled = true;
+            const boxes = document.querySelectorAll('.screen-check:checked');
+            if(boxes.length === 0) return alert("Select a TV.");
+            const btn = document.getElementById('btn-confirm');
+            btn.innerText = "Deploying..."; btn.disabled = true;
 
             try {
-                for (let box of checkboxes) {
-                    const screenId = box.value;
-                    await sbClient.from('playlist_items').delete().eq('screen_id', screenId);
-                    await sbClient.from('playlist_items').insert([{ screen_id: screenId, media_id: currentMediaId }]); 
+                for (let box of boxes) {
+                    const sid = box.value;
+                    // First, clear any old links for this specific screen
+                    await sbClient.from('playlist_items').delete().eq('screen_id', sid);
+                    // Then, insert the new one
+                    const { error } = await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: currentMediaId }]);
+                    if (error) throw error;
                 }
+                alert("Deployed! Check your TV in 3 seconds.");
                 closeAssignModal();
-                alert(`Success! Content pushed to ${checkboxes.length} screen(s).`);
             } catch (err) {
-                alert("DATABASE BLOCKED ACTION: \n\n" + err.message);
+                alert("CRITICAL ASSIGNMENT ERROR: " + err.message);
+                console.error(err);
             } finally {
-                confirmBtn.innerText = "Push to TVs";
-                confirmBtn.disabled = false;
+                btn.innerText = "Push to TVs"; btn.disabled = false;
             }
         }
 
-        // --- DELETE LOGIC ---
         async function deleteMedia(id) {
-            if(confirm("Permanently delete this media? It will instantly be removed from any TVs currently displaying it.")) {
-                try {
-                    await sbClient.from('playlist_items').delete().eq('media_id', id);
-                    await sbClient.from('media').delete().eq('id', id);
-                    loadLibrary(); 
-                } catch (err) {
-                    alert("DATABASE BLOCKED ACTION: \n\n" + err.message);
-                }
+            if(confirm("Delete permanently?")) {
+                await sbClient.from('playlist_items').delete().eq('media_id', id);
+                await sbClient.from('media').delete().eq('id', id);
+                loadLibrary();
             }
         }
-
         window.onload = loadLibrary;
     </script>
 </body>
