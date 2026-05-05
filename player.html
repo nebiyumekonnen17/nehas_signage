@@ -32,7 +32,17 @@
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        const sbClient = supabase.createClient(S_URL, S_KEY);
+        
+        // CRITICAL FIX 1: Supabase Cache-Buster. Forces TV to fetch live data instead of reading memory.
+        const sbClient = supabase.createClient(S_URL, S_KEY, {
+            global: {
+                fetch: (url, options) => {
+                    const reqUrl = new URL(url);
+                    reqUrl.searchParams.set('nocache', Date.now());
+                    return fetch(reqUrl.toString(), { ...options, cache: 'no-store' });
+                }
+            }
+        });
         
         let SCREEN_ID = localStorage.getItem('nehas_sid');
         let currentPlaylist = [];
@@ -122,7 +132,7 @@
                 const cacheKeys = await cache.keys();
                 
                 const validUrls = playlist
-                    .filter(item => item.media.media_type !== 'url')
+                    .filter(item => item.media && item.media.media_type !== 'url')
                     .map(item => item.media.file_url);
 
                 for (let req of cacheKeys) {
@@ -154,6 +164,22 @@
             return url; 
         }
 
+        // --- CRITICAL FIX 2: HARDWARE MEDIA CLEANUP ---
+        // Forces the TV to completely destroy the video out of memory
+        function clearCurrentMedia() {
+            const oldVid = document.getElementById('nehas-vid');
+            if (oldVid) {
+                oldVid.pause();
+                oldVid.removeAttribute('src');
+                oldVid.load(); 
+            }
+            if (activeObjectUrl) {
+                URL.revokeObjectURL(activeObjectUrl);
+                activeObjectUrl = null;
+            }
+            document.getElementById('media-container').innerHTML = '';
+        }
+
         // --- DAYPARTING (TIME CHECK) ---
         function isTimeAllowed(startStr, endStr) {
             if (!startStr || !endStr) return true;
@@ -173,15 +199,14 @@
         }
 
         function showWaitingScreen(message) {
+            clearCurrentMedia();
             document.getElementById('ui-box').style.opacity = "1";
             document.getElementById('bg').style.opacity = "1";
             document.getElementById('ui-content').innerHTML = `<p style="color:#3b82f6; font-weight:bold;">${message}</p>`;
-            document.getElementById('media-container').innerHTML = '';
         }
 
         async function playNext(loopCount = 0) {
             clearTimeout(playbackTimer); 
-            if(activeObjectUrl) URL.revokeObjectURL(activeObjectUrl); 
             
             if (currentPlaylist.length === 0) {
                 updateLog("PLAYLIST EMPTY - WAITING");
@@ -209,6 +234,8 @@
         }
 
         async function renderMedia(item) {
+            clearCurrentMedia(); // Destroy old video before loading the new one
+            
             const media = item.media;
             updateLog(`PLAYING [${currentIndex + 1}/${currentPlaylist.length}]: ${media.media_type.toUpperCase()}`);
 
@@ -250,7 +277,6 @@
         }
 
         // --- FULLSCREEN LOCK ---
-        // Forces fullscreen on the first click
         document.addEventListener('click', function() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
@@ -259,7 +285,6 @@
             }
         });
 
-        // Prevents keyboard inputs except F11 and Escape
         document.addEventListener('keydown', function(e) {
             if (e.key !== 'F11' && e.key !== 'Escape') {
                 e.preventDefault(); 
