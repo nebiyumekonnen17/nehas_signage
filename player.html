@@ -20,25 +20,29 @@
         .brand-eng { font-size: 2rem; letter-spacing: 10px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; }
         .brand-am { font-size: 1.6rem; color: #cbd5e1; margin-bottom: 25px; letter-spacing: 3px; font-weight: 300; }
         .code { font-size: 8rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); letter-spacing: 10px; }
-        #status { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.5; }
+        #status { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.5; z-index: 999; }
     </style>
 </head>
 <body>
     <div id="bg"></div>
-    <div id="media-container">
-        <div class="glass-card" id="ui-box">
-            <div class="brand-eng">NEHAS SIGNAGE</div>
-            <div class="brand-am">ነሃስ ማስታወቂያ</div>
-            <div id="ui-content" style="color:#94a3b8; font-size: 1.2rem;">Booting System...</div>
-        </div>
+    
+    <div id="media-container"></div>
+
+    <div class="glass-card" id="ui-box" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;">
+        <div class="brand-eng">NEHAS SIGNAGE</div>
+        <div class="brand-am">ነሃስ ማስታወቂያ</div>
+        <div id="ui-content" style="color:#94a3b8; font-size: 1.2rem;">Booting System...</div>
     </div>
+    
     <div id="status">OS_STATUS: <span id="log-text">INITIALIZING</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
+        
         let SCREEN_ID = localStorage.getItem('nehas_sid');
+        let currentMediaId = 'init'; // Tracks what is currently playing
 
         async function boot() {
             document.getElementById('bg').style.opacity = "1";
@@ -46,7 +50,9 @@
             
             if (SCREEN_ID) {
                 const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
-                if (data && data.is_paired) return startLoop();
+                if (data && data.is_paired) {
+                    return startSyncEngine(); // Start checking for media
+                }
             }
             register();
         }
@@ -64,28 +70,82 @@
                 localStorage.setItem('nehas_sid', SCREEN_ID);
                 document.getElementById('ui-content').innerHTML = `<div class="code">${code}</div><p>Enter this code in your Dashboard to pair.</p>`;
                 
-                sbClient.channel('p').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${SCREEN_ID}` }, () => location.reload()).subscribe();
+                // Check every 3 seconds to see if the admin entered the code
+                const pairCheck = setInterval(async () => {
+                    const { data: sData } = await sbClient.from('screens').select('is_paired').eq('id', SCREEN_ID).maybeSingle();
+                    if (sData && sData.is_paired) {
+                        clearInterval(pairCheck);
+                        startSyncEngine();
+                    }
+                }, 3000);
+
             } else {
                 document.getElementById('log-text').innerText = "SYNC_ERROR - Retrying...";
                 setTimeout(register, 5000);
             }
         }
 
-        async function startLoop() {
-            document.getElementById('log-text').innerText = "ONLINE_MODE";
-            const { data } = await sbClient.from('playlist_items').select('media!inner(*)').eq('screen_id', SCREEN_ID);
-            
-            if (data?.length > 0) {
-                document.getElementById('bg').style.opacity = "0";
-                document.getElementById('ui-box').style.display = "none";
-                const m = data[0].media;
-                const cont = document.getElementById('media-container');
-                
-                if(m.media_type==='video') cont.innerHTML = `<video src="${m.file_url}" autoplay muted loop style="width:100%;height:100%;object-fit:cover;"></video>`;
-                else if(m.media_type==='url') cont.innerHTML = `<iframe src="${m.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
-                else cont.innerHTML = `<img src="${m.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
-            } else {
-                document.getElementById('ui-content').innerHTML = `<p style="color:#3b82f6;">Successfully Paired. Add media in the Library.</p>`;
+        // --- THE AUTO-SYNC ENGINE ---
+        // This runs every 3 seconds to perfectly mirror the database
+        function startSyncEngine() {
+            document.getElementById('log-text').innerText = "ONLINE_SYNC_ACTIVE";
+            fetchAndRenderMedia(); // Run immediately
+            setInterval(fetchAndRenderMedia, 3000); // Check again every 3 seconds
+        }
+
+        async function fetchAndRenderMedia() {
+            try {
+                // STEP 1: Find out what is supposed to be playing
+                const { data: playlistData, error: pError } = await sbClient
+                    .from('playlist_items')
+                    .select('media_id')
+                    .eq('screen_id', SCREEN_ID)
+                    .maybeSingle();
+
+                if (pError) throw pError;
+
+                const newMediaId = playlistData ? playlistData.media_id : null;
+
+                // If the media hasn't changed, do nothing! (Prevents video from restarting)
+                if (newMediaId === currentMediaId) return;
+
+                currentMediaId = newMediaId;
+
+                // If NO media is assigned, show the waiting screen
+                if (!newMediaId) {
+                    document.getElementById('ui-box').style.display = "block";
+                    document.getElementById('bg').style.opacity = "1";
+                    document.getElementById('ui-content').innerHTML = `<p style="color:#3b82f6; font-weight:bold;">Successfully Paired. Waiting for media...</p>`;
+                    document.getElementById('media-container').innerHTML = '';
+                    return;
+                }
+
+                // STEP 2: Fetch the actual file details
+                const { data: mediaData, error: mError } = await sbClient
+                    .from('media')
+                    .select('*')
+                    .eq('id', newMediaId)
+                    .maybeSingle();
+
+                if (mError) throw mError;
+
+                if (mediaData) {
+                    // Hide the UI Box and render the media
+                    document.getElementById('bg').style.opacity = "0";
+                    document.getElementById('ui-box').style.display = "none";
+                    
+                    const cont = document.getElementById('media-container');
+                    
+                    if(mediaData.media_type === 'video') {
+                        cont.innerHTML = `<video src="${mediaData.file_url}" autoplay muted loop style="width:100%;height:100%;object-fit:cover;"></video>`;
+                    } else if(mediaData.media_type === 'url') {
+                        cont.innerHTML = `<iframe src="${mediaData.file_url}" style="width:100%;height:100%;border:none;"></iframe>`;
+                    } else {
+                        cont.innerHTML = `<img src="${mediaData.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
+                    }
+                }
+            } catch (err) {
+                console.error("Sync Error:", err);
             }
         }
 
