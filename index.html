@@ -56,6 +56,7 @@
                 <h3 style="margin-top:0;">3. Add YouTube Video</h3>
                 <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Save YouTube links to play via embedded player.</p>
                 <input type="text" id="yt-url" placeholder="Paste YouTube Link">
+                <input type="text" id="yt-name" placeholder="Name this video (e.g. Promo 1)">
                 <button onclick="saveYouTube()" style="background:#ef4444;">Save to Library</button>
                 <div id="status-yt" class="status"></div>
             </div>
@@ -123,10 +124,15 @@
                     return status.innerText = "Cloudinary Error: " + cloudData.error.message;
                 }
 
-                // 2. Save secure URL to Supabase Library
+                // 2. Save secure URL AND File Name to Supabase Library
                 const mediaType = cloudData.resource_type === 'video' ? 'video' : 'image';
+                
                 const { error: dbError } = await sbClient.from('media').insert([
-                    { file_url: cloudData.secure_url, media_type: mediaType }
+                    { 
+                        file_url: cloudData.secure_url, 
+                        media_type: mediaType,
+                        file_name: file.name // Added this line to fix the database error!
+                    }
                 ]);
 
                 if(dbError) {
@@ -147,9 +153,10 @@
 
         async function saveYouTube() {
             let url = document.getElementById('yt-url').value.trim();
+            let name = document.getElementById('yt-name').value.trim();
             const status = document.getElementById('status-yt');
             
-            if(!url) return status.innerText = "Provide a YouTube URL.";
+            if(!url || !name) return status.innerText = "Provide a YouTube URL and a Name.";
 
             status.style.color = "#3b82f6"; 
             status.innerText = "Saving format...";
@@ -157,12 +164,23 @@
             if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0&mute=1";
             if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0&mute=1";
 
-            const { error } = await sbClient.from('media').insert([{ file_url: url, media_type: 'url' }]);
+            // Added file_name here as well
+            const { error } = await sbClient.from('media').insert([
+                { 
+                    file_url: url, 
+                    media_type: 'url',
+                    file_name: name 
+                }
+            ]);
             
             if(!error) {
                 status.style.color = "#10b981"; 
                 status.innerText = "YouTube Saved to Library!";
                 document.getElementById('yt-url').value = '';
+                document.getElementById('yt-name').value = '';
+            } else {
+                status.style.color = "#ef4444";
+                status.innerText = "Database Error: " + error.message;
             }
         }
     </script>
