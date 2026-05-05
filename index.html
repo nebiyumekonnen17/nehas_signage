@@ -45,31 +45,32 @@
             </div>
 
             <div class="card" style="border-top: 5px solid #10b981;">
-                <h3 style="margin-top:0;">2. Upload Image (Computer)</h3>
-                <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Upload image files directly to your cloud storage.</p>
-                <input type="file" id="img-file" accept="image/*">
-                <button onclick="uploadImage()" style="background:#10b981;">Save to Library</button>
-                <div id="status-img" class="status"></div>
+                <h3 style="margin-top:0;">2. Upload Media (Cloudinary)</h3>
+                <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Upload heavy videos and images securely via your preset.</p>
+                <input type="file" id="c-file" accept="image/*,video/*">
+                <button onclick="uploadToCloudinary()" style="background:#10b981;">Upload to Library</button>
+                <div id="status-cloud" class="status"></div>
             </div>
 
             <div class="card" style="border-top: 5px solid #ef4444;">
-                <h3 style="margin-top:0;">3. Add Video (Via Link)</h3>
-                <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Save storage by linking direct MP4s or YouTube videos.</p>
-                <input type="text" id="vid-url" placeholder="Paste Video URL or YouTube Link">
-                <select id="vid-type">
-                    <option value="video">Direct Video File (.mp4)</option>
-                    <option value="url">YouTube Video</option>
-                </select>
-                <button onclick="saveVideo()" style="background:#ef4444;">Save to Library</button>
-                <div id="status-vid" class="status"></div>
+                <h3 style="margin-top:0;">3. Add YouTube Video</h3>
+                <p style="color:#64748b; font-size:14px; margin-bottom: 20px;">Save YouTube links to play via embedded player.</p>
+                <input type="text" id="yt-url" placeholder="Paste YouTube Link">
+                <button onclick="saveYouTube()" style="background:#ef4444;">Save to Library</button>
+                <div id="status-yt" class="status"></div>
             </div>
         </div>
     </div>
 
     <script>
+        // Supabase Init
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
         const sbClient = supabase.createClient(S_URL, S_KEY);
+
+        // Cloudinary Config
+        const CLOUD_NAME = 'dfgfiope9'; 
+        const CLOUD_PRESET = 'nehas_unsigned'; 
 
         async function pairTV() {
             const code = document.getElementById('p-code').value.trim();
@@ -95,64 +96,73 @@
             }
         }
 
-        async function uploadImage() {
-            const fileInput = document.getElementById('img-file');
+        async function uploadToCloudinary() {
+            const fileInput = document.getElementById('c-file');
             const file = fileInput.files[0];
-            const status = document.getElementById('status-img');
+            const status = document.getElementById('status-cloud');
 
-            if(!file) return status.innerText = "Please select an image file.";
+            if(!file) return status.innerText = "Please select a file.";
             
             status.style.color = "#3b82f6"; 
-            status.innerText = "Uploading to cloud...";
+            status.innerText = "Uploading to Cloudinary... Please wait.";
 
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Date.now()}_nehas.${fileExt}`;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', CLOUD_PRESET);
 
-            // Upload to your 'signage-media' bucket
-            const { error: uploadError } = await sbClient.storage.from('signage-media').upload(fileName, file);
+            const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
 
-            if (uploadError) {
-                status.style.color = "#ef4444";
-                console.error(uploadError);
-                return status.innerText = "Upload failed. Check console for details.";
-            }
+            try {
+                // 1. Upload to Cloudinary
+                const res = await fetch(url, { method: 'POST', body: formData });
+                const cloudData = await res.json();
 
-            // Get Public URL
-            const { data: urlData } = sbClient.storage.from('signage-media').getPublicUrl(fileName);
+                if (cloudData.error) {
+                    status.style.color = "#ef4444";
+                    console.error("Cloudinary Error:", cloudData.error);
+                    return status.innerText = "Cloudinary Error: " + cloudData.error.message;
+                }
 
-            // Save to Library DB
-            const { error: dbError } = await sbClient.from('media').insert([{ file_url: urlData.publicUrl, media_type: 'image' }]);
+                // 2. Save secure URL to Supabase Library
+                const mediaType = cloudData.resource_type === 'video' ? 'video' : 'image';
+                const { error: dbError } = await sbClient.from('media').insert([
+                    { file_url: cloudData.secure_url, media_type: mediaType }
+                ]);
 
-            if(!dbError) {
+                if(dbError) {
+                    status.style.color = "#ef4444";
+                    return status.innerText = "Database Error: " + dbError.message;
+                }
+
                 status.style.color = "#10b981"; 
-                status.innerText = "Image Saved to Library!";
+                status.innerText = "Media Saved to Library!";
                 fileInput.value = ''; 
+
+            } catch (err) {
+                status.style.color = "#ef4444";
+                status.innerText = "Network Error. Check Console.";
+                console.error(err);
             }
         }
 
-        async function saveVideo() {
-            let url = document.getElementById('vid-url').value.trim();
-            const type = document.getElementById('vid-type').value;
-            const status = document.getElementById('status-vid');
+        async function saveYouTube() {
+            let url = document.getElementById('yt-url').value.trim();
+            const status = document.getElementById('status-yt');
             
-            if(!url) return status.innerText = "Provide a video URL.";
+            if(!url) return status.innerText = "Provide a YouTube URL.";
 
             status.style.color = "#3b82f6"; 
             status.innerText = "Saving format...";
 
-            // Auto-format YouTube links
-            if (type === 'url') {
-                if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0&mute=1";
-                if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0&mute=1";
-            }
+            if(url.includes('watch?v=')) url = url.replace('watch?v=', 'embed/') + "?autoplay=1&controls=0&mute=1";
+            if(url.includes('youtu.be/')) url = url.replace('youtu.be/', 'www.youtube.com/embed/') + "?autoplay=1&controls=0&mute=1";
 
-            // Save to Library DB
-            const { error } = await sbClient.from('media').insert([{ file_url: url, media_type: type }]);
+            const { error } = await sbClient.from('media').insert([{ file_url: url, media_type: 'url' }]);
             
             if(!error) {
                 status.style.color = "#10b981"; 
-                status.innerText = "Video Saved to Library!";
-                document.getElementById('vid-url').value = '';
+                status.innerText = "YouTube Saved to Library!";
+                document.getElementById('yt-url').value = '';
             }
         }
     </script>
