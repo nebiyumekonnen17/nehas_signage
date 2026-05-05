@@ -8,61 +8,72 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: 'Inter', sans-serif; cursor: none; }
-        
-        /* FEATURE 1: Background and Fade Effect (Original Link Restored) */
-        #bg { 
-            position: fixed; width: 100%; height: 100%; 
-            background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover; 
-            filter: brightness(0.5); 
-            z-index: 1; 
-            transition: opacity 1.5s ease; /* Smooth fade restore */
+        /* Transparent body allows the #bg div to show through */
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: transparent; 
+            overflow: hidden; font-family: 'Inter', sans-serif; cursor: none; 
         }
         
-        #media-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; align-items: center; justify-content: center; background: #000; }
+        /* The Actual Background Layer */
+        #bg { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: url('https://res.cloudinary.com/dfgfiope9/image/upload/nehas-bg_qj3n5q.jpg') center/cover no-repeat; 
+            filter: brightness(0.4); 
+            z-index: -1; /* Sits behind everything */
+            transition: opacity 1.5s ease;
+        }
         
-        /* FEATURE 2: Transparent Central Box (Glassmorphism effect) */
-        .glass-card { 
-            background: rgba(15, 23, 42, 0.2); /* Deep transparent blue */
-            backdrop-filter: blur(40px); /* Frosted glass effect to see through */
-            -webkit-backdrop-filter: blur(40px); /* For older TV browsers */
-            
-            padding: 60px 80px; 
-            border-radius: 50px; 
-            border: 1px solid rgba(255, 255, 255, 0.15); /* Subtle glowing edge */
-            
-            text-align: center; color: white; 
-            box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5); /* Lifted appearance */
-            
-            transition: opacity 0.5s ease; 
+        /* Media layer sits above background but below the UI card */
+        #media-container { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 5; display: flex; align-items: center; justify-content: center; 
+            background: transparent; /* Changed from black to transparent */
+        }
+        
+        #media-container img, #media-container video {
+            max-width: 100%; max-height: 100%; object-fit: contain;
         }
 
-        .brand-eng { font-size: 2.2rem; letter-spacing: 10px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; text-shadow: 0 0 15px rgba(59,130,246,0.5); }
-        .brand-am { font-size: 1.8rem; color: #cbd5e1; margin-bottom: 25px; letter-spacing: 3px; }
+        /* The Transparent "Glass" UI Card */
+        .glass-card { 
+            background: rgba(15, 23, 42, 0.4); /* Transparent dark blue */
+            backdrop-filter: blur(20px); 
+            -webkit-backdrop-filter: blur(20px); 
+            padding: 50px 70px; border-radius: 40px; 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+            text-align: center; color: white; 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 10; 
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            transition: opacity 0.8s ease;
+        }
+
+        .brand-eng { font-size: 2.2rem; letter-spacing: 8px; color: #3b82f6; font-weight: 900; margin-bottom: 5px; }
+        .brand-am { font-size: 1.8rem; color: #cbd5e1; margin-bottom: 25px; }
+        .code { font-size: 7rem; font-weight: 900; color: #fff; text-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
         
-        .code { font-size: 8rem; font-weight: 900; margin: 20px 0; font-family: monospace; color: #fff; text-shadow: 0 0 60px rgba(59, 130, 246, 0.7); letter-spacing: 10px; }
-        #status { position: fixed; bottom: 15px; left: 20px; font-size: 12px; color: #3b82f6; font-family: monospace; opacity: 0.7; z-index: 999; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; }
-        .fs-prompt { font-size: 12px; color: #64748b; margin-top: 25px; text-transform: uppercase; letter-spacing: 2px; }
+        #status { position: fixed; bottom: 15px; left: 20px; font-size: 11px; color: #3b82f6; font-family: monospace; opacity: 0.6; z-index: 999; }
+        .fs-prompt { font-size: 11px; color: #64748b; margin-top: 20px; text-transform: uppercase; letter-spacing: 2px; }
     </style>
 </head>
 <body>
     <div id="bg"></div>
+    
     <div id="media-container"></div>
     
-    <div class="glass-card" id="ui-box" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;">
+    <div class="glass-card" id="ui-box">
         <div class="brand-eng">NEHAS SIGNAGE</div>
         <div class="brand-am">ነሃስ ማስታወቂያ</div>
-        <div id="ui-content" style="color:#94a3b8; font-size: 1.3rem;">Booting System...</div>
+        <div id="ui-content" style="color:#94a3b8; font-size: 1.2rem;">Booting...</div>
         <div class="fs-prompt" id="fs-hint">Click for Fullscreen</div>
     </div>
     
-    <div id="status">OS_STATUS: <span id="log-text">INITIALIZING</span></div>
+    <div id="status">OS_STATUS: <span id="log-text">IDLE</span></div>
 
     <script>
         const S_URL = 'https://ynkrloxlyradjbdqdaam.supabase.co'; 
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3Jsb3hseXJhZGpiZHFkYWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjY1OTksImV4cCI6MjA5MzAwMjU5OX0.tKbwqscphp4lJuqtZz3hDRIUtI0ab9ftc6V0DROckPo';
-        
-        // Anti-freeze stable connection retained
         const sbClient = supabase.createClient(S_URL, S_KEY);
         
         let SCREEN_ID = localStorage.getItem('nehas_sid');
@@ -70,17 +81,16 @@
         let currentIndex = -1; 
         let lastSignature = ""; 
         let playbackTimer = null;
-        let activeObjectUrl = null; 
 
         function updateLog(msg) { document.getElementById('log-text').innerText = msg; }
 
         async function boot() {
-            updateLog("CHECKING ID...");
+            updateLog("CHECKING_ID");
             if (SCREEN_ID) {
                 const { data } = await sbClient.from('screens').select('*').eq('id', SCREEN_ID).maybeSingle();
                 if (data && data.is_paired) {
-                    startHeartbeat(); // ONLINE status retained
-                    return startEngine();
+                    startEngine();
+                    return;
                 }
             }
             register();
@@ -92,7 +102,7 @@
             if (data && data[0]) {
                 SCREEN_ID = data[0].id;
                 localStorage.setItem('nehas_sid', SCREEN_ID);
-                document.getElementById('ui-content').innerHTML = `<div class="code">${code}</div><p>Pair this code in your Dashboard.</p>`;
+                document.getElementById('ui-content').innerHTML = `<div class="code">${code}</div><p>Pair this code in Dashboard.</p>`;
                 setInterval(async () => {
                     const { data: s } = await sbClient.from('screens').select('is_paired').eq('id', SCREEN_ID).maybeSingle();
                     if (s && s.is_paired) location.reload();
@@ -100,102 +110,71 @@
             }
         }
 
-        // --- HEARTBEAT MONITOR ---
-        function startHeartbeat() {
+        function startEngine() {
+            updateLog("ENGINE_LIVE");
+            fetchPlaylist(); 
+            setInterval(fetchPlaylist, 10000); 
             setInterval(() => {
-                sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID).then(()=>updateLog("PING_OK"));
+                sbClient.from('screens').update({ last_seen: new Date().toISOString() }).eq('id', SCREEN_ID);
             }, 15000);
         }
 
-        // --- MASTER ENGINE (Live-Sync) ---
-        function startEngine() {
-            fetchPlaylist(); 
-            setInterval(fetchPlaylist, 10000); 
-        }
-
         async function fetchPlaylist() {
-            try {
-                const { data } = await sbClient.from('playlist_items').select('id, duration, start_time, end_time, media(*)').eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
-                const sig = data ? data.map(p => p.id).join(',') : "";
-                if (sig !== lastSignature) {
-                    currentPlaylist = data || [];
-                    lastSignature = sig;
-                    currentIndex = -1;
-                    playNext(); 
-                }
-            } catch (err) { console.error("Sync Error:", err); }
+            const { data } = await sbClient.from('playlist_items').select('id, duration, media(*)').eq('screen_id', SCREEN_ID).order('display_order', { ascending: true });
+            const sig = data ? data.map(p => p.id).join(',') : "";
+            if (sig !== lastSignature) {
+                currentPlaylist = data || [];
+                lastSignature = sig;
+                currentIndex = -1;
+                playNext(); 
+            }
         }
 
-        // --- SCHEDULING (Dayparting) retained ---
-        function isTimeAllowed(start, end) {
-            if (!start || !end) return true;
-            const now = new Date();
-            const cur = now.getHours() * 60 + now.getMinutes();
-            const [sH, sM] = start.split(':').map(Number);
-            const [eH, eM] = end.split(':').map(Number);
-            const s = sH * 60 + sM, e = eH * 60 + eM;
-            return s <= e ? (cur >= s && cur <= e) : (cur >= s || cur <= e);
-        }
-
-        function showWaitingScreen(message) {
-            document.getElementById('ui-box').style.opacity = "1";
-            document.getElementById('bg').style.opacity = "1"; // Restore background and fade
-            document.getElementById('ui-content').innerText = message;
-            document.getElementById('media-container').innerHTML = '';
-        }
-
-        function playNext(loopCount = 0) {
-            clearTimeout(playbackTimer); 
-            if (currentPlaylist.length === 0) return showWaitingScreen("Waiting for media...");
-
-            // Dayparting logic retained
-            if (loopCount >= currentPlaylist.length) {
-                showWaitingScreen("Scheduled for later. Waiting...");
-                playbackTimer = setTimeout(() => playNext(0), 10000); 
+        function playNext() {
+            clearTimeout(playbackTimer);
+            if (currentPlaylist.length === 0) {
+                document.getElementById('ui-box').style.opacity = "1";
+                document.getElementById('bg').style.opacity = "1";
+                document.getElementById('ui-content').innerText = "Waiting for media...";
+                document.getElementById('media-container').innerHTML = '';
                 return;
             }
-
             currentIndex = (currentIndex + 1) >= currentPlaylist.length ? 0 : currentIndex + 1;
-            const item = currentPlaylist[currentIndex];
-
-            if (!isTimeAllowed(item.start_time, item.end_time)) return playNext(loopCount + 1); 
-
-            renderMedia(item);
+            renderMedia(currentPlaylist[currentIndex]);
         }
 
-        async function renderMedia(item) {
-            const media = item.media;
-            updateLog(`PLAYING: ${media.media_type.toUpperCase()}`);
-
-            document.getElementById('bg').style.opacity = "0"; // Smooth fade out background
-            document.getElementById('ui-box').style.opacity = "0"; // Smooth fade out UI box
+        function renderMedia(item) {
+            updateLog(`PLAYING: ${item.media.media_type.toUpperCase()}`);
+            
+            // Fade out the UI and Background when media starts
+            document.getElementById('bg').style.opacity = "0";
+            document.getElementById('ui-box').style.opacity = "0";
+            
             const cont = document.getElementById('media-container');
+            const media = item.media;
 
             if (media.media_type === 'image') {
-                cont.innerHTML = `<img src="${media.file_url}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
-                playbackTimer = setTimeout(() => playNext(0), (item.duration || 10) * 1000);
+                cont.innerHTML = `<img src="${media.file_url}">`;
+                playbackTimer = setTimeout(playNext, (item.duration || 10) * 1000);
             } else if (media.media_type === 'video') {
-                cont.innerHTML = `<video id="nehas-vid" src="${media.file_url}" autoplay muted style="width:100%;height:100%;object-fit:cover;"></video>`;
-                document.getElementById('nehas-vid').onended = () => playNext(0);
+                cont.innerHTML = `<video id="v" src="${media.file_url}" autoplay muted></video>`;
+                document.getElementById('v').onended = playNext;
             } else if (media.media_type === 'url') {
-                // Stabilized YouTube listener retained
-                cont.innerHTML = `<iframe id="yt" src="${media.file_url}&enablejsapi=1&autoplay=1&mute=1" style="width:100%;height:100%;border:none" allow="autoplay"></iframe>`;
+                cont.innerHTML = `<iframe id="yt" src="${media.file_url}&enablejsapi=1&autoplay=1&mute=1" style="width:100%;height:100%;border:none"></iframe>`;
                 setTimeout(() => {
                     try {
-                        new YT.Player('yt', { events: { 'onStateChange': (e) => { if(e.data === 0) playNext(0); } } });
-                    } catch(e) { setTimeout(()=>playNext(0), 60000); }
+                        new YT.Player('yt', { events: { 'onStateChange': (e) => { if(e.data === 0) playNext(); } } });
+                    } catch(e) { setTimeout(playNext, 60000); }
                 }, 1000);
             }
         }
 
-        // --- FULLSCREEN & KEY LOCKING retained ---
         document.addEventListener('click', () => {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen();
                 document.getElementById('fs-hint').style.display = "none";
             }
         });
-        document.addEventListener('keydown', (e) => { if (e.key !== 'F11' && e.key !== 'Escape') e.preventDefault(); });
 
         window.onload = boot;
     </script>
