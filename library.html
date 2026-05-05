@@ -140,10 +140,15 @@
             try {
                 for (let box of boxes) {
                     const sid = box.value;
-                    // First, clear any old links for this specific screen
                     await sbClient.from('playlist_items').delete().eq('screen_id', sid);
-                    // Then, insert the new one
-                    const { error } = await sbClient.from('playlist_items').insert([{ screen_id: sid, media_id: currentMediaId }]);
+                    
+                    // CRITICAL FIX: Added display_order: 1 to satisfy your database requirements
+                    const { error } = await sbClient.from('playlist_items').insert([{ 
+                        screen_id: sid, 
+                        media_id: currentMediaId,
+                        display_order: 1 
+                    }]);
+                    
                     if (error) throw error;
                 }
                 alert("Deployed! Check your TV in 3 seconds.");
